@@ -60,35 +60,30 @@ struct WorkoutCategoryCard: View {
 }
 
 struct WorkoutSelectionView: View {
-    @Binding var workoutSessions: [WorkoutSession]
+    @Environment(\.managedObjectContext) private var viewContext
     @Binding var selectedDate: Date
     
-    // Organiserer kategorier i rader
     private let columns = [
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
     ]
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(WorkoutCategory.allCases, id: \.self) { category in
-                        NavigationLink(
-                            destination: WorkoutLogView(
-                                workoutSessions: $workoutSessions,
-                                selectedDate: $selectedDate,
-                                selectedCategory: category
-                            )
-                        ) {
-                            WorkoutCategoryCard(category: category)
-                        }
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(WorkoutCategory.allCases, id: \.self) { category in
+                    NavigationLink(
+                        destination: WorkoutLogView(
+                            selectedDate: $selectedDate,
+                            selectedCategory: category
+                        )
+                    ) {
+                        WorkoutCategoryCard(category: category)
                     }
                 }
-                .padding()
             }
-            .navigationTitle("Treningsform")
-            .background(Color(.systemBackground))
+            .padding()
         }
+        .navigationTitle("Velg treningstype")
     }
 } 
