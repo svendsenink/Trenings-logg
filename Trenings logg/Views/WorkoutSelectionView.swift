@@ -60,30 +60,36 @@ struct WorkoutCategoryCard: View {
 }
 
 struct WorkoutSelectionView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @Binding var selectedDate: Date
-    
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
+    @State private var selectedDate = Date()
     
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(WorkoutCategory.allCases, id: \.self) { category in
-                    NavigationLink(
-                        destination: WorkoutLogView(
-                            selectedDate: $selectedDate,
-                            selectedCategory: category
-                        )
-                    ) {
-                        WorkoutCategoryCard(category: category)
-                    }
+        NavigationView {
+            VStack(spacing: 30) {
+                Text("Select workout type")
+                    .font(.title)
+                    .fontWeight(.bold)
+                
+                HStack(spacing: 40) {
+                    WorkoutTypeButton(
+                        type: .strength,
+                        icon: "dumbbell.fill",
+                        title: "Strength"
+                    )
+                    
+                    WorkoutTypeButton(
+                        type: .endurance,
+                        icon: "figure.run",
+                        title: "Endurance"
+                    )
                 }
+                
+                WorkoutTypeButton(
+                    type: .other,
+                    icon: "figure.mixed.cardio",
+                    title: "Other"
+                )
             }
             .padding()
         }
-        .navigationTitle("Velg treningstype")
     }
 } 

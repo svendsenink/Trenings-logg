@@ -4,6 +4,7 @@ import CoreData
 struct WorkoutHistoryView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Binding var selectedDate: Date
+    @State private var showingStatistics = false
     
     @FetchRequest(
         fetchRequest: CDWorkoutSession.fetchRequest(nil),
@@ -27,7 +28,29 @@ struct WorkoutHistoryView: View {
                     WorkoutSessionView(session: session)
                 }
                 .onDelete(perform: deleteWorkouts)
+                
+                Button(action: {
+                    showingStatistics = true
+                }) {
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                        Text("Training Statistics")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .padding(.horizontal)
+                .padding(.top, 20)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
+            .listStyle(PlainListStyle())
+        }
+        .sheet(isPresented: $showingStatistics) {
+            ExportView()
         }
     }
     

@@ -12,7 +12,7 @@ struct WorkoutSessionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(session.type ?? "")
+                Text(formatWorkoutType(session.type ?? ""))
                     .font(.headline)
                     .foregroundColor(.blue)
                 Spacer()
@@ -70,5 +70,17 @@ struct WorkoutSessionView: View {
             }
         }
         .padding(.vertical, 8)
+    }
+    
+    private func formatWorkoutType(_ type: String) -> String {
+        if type.contains("Other training") {
+            if let range = type.range(of: "\\((.+?)\\)", options: .regularExpression) {
+                let templateName = type[range]
+                    .replacingOccurrences(of: "(", with: "")
+                    .replacingOccurrences(of: ")", with: "")
+                return "Other training (\(templateName))"
+            }
+        }
+        return type
     }
 } 

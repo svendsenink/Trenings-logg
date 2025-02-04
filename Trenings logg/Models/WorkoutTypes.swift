@@ -1,15 +1,11 @@
 import Foundation
 
-enum WorkoutLayout: String, CaseIterable {
-    case strength = "Styrke (Vekt/Reps)"
-    case endurance = "Utholdenhet (Tid/Distanse)"
-    case basic = "Enkel (Kun tid)"
-}
-
-enum WorkoutCategory: String, CaseIterable {
-    case strength = "Styrke"
-    case endurance = "Utholdenhetstrening"
-    case other = "Annen trening"
+enum WorkoutCategory: String, CaseIterable, Identifiable {
+    case strength = "Strength"
+    case endurance = "Endurance"
+    case other = "Other training"
+    
+    var id: String { rawValue }
     
     var defaultLayout: WorkoutLayout {
         switch self {
@@ -21,4 +17,12 @@ enum WorkoutCategory: String, CaseIterable {
             return .basic
         }
     }
+}
+
+enum WorkoutLayout: String, CaseIterable, Identifiable {
+    case strength = "Strength (Weight/Reps)"
+    case endurance = "Endurance (Time/Dist)"
+    case basic = "Basic (Time only)"
+    
+    var id: String { rawValue }
 } 

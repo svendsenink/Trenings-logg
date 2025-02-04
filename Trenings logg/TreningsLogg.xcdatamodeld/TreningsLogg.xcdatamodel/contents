@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24C101" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24D60" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="CDEditTemplate" representedClassName="CDEditTemplate" syncable="YES" codeGenerationType="class"/>
     <entity name="CDExercise" representedClassName="CDExercise" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="increaseNextTime" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
@@ -10,13 +11,16 @@
     <entity name="CDExerciseTemplate" representedClassName="CDExerciseTemplate" syncable="YES" codeGenerationType="class">
         <attribute name="defaultSets" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="increaseNextTime" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="order" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="template" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDWorkoutTemplate" inverseName="exercises" inverseEntity="CDWorkoutTemplate"/>
     </entity>
-    <entity name="CDSetData" representedClassName="CDSetData" syncable="YES" codeGenerationType="class">
+    <entity name="CDSetData" representedClassName="CDSetData" syncable="YES">
         <attribute name="distance" optional="YES" attributeType="String"/>
         <attribute name="duration" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="incline" optional="YES" attributeType="String"/>
         <attribute name="reps" optional="YES" attributeType="String"/>
         <attribute name="restPeriod" optional="YES" attributeType="String"/>
         <attribute name="weight" optional="YES" attributeType="String"/>
@@ -28,11 +32,13 @@
         <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="templateName" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
         <relationship name="exercises" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExercise" inverseName="session" inverseEntity="CDExercise"/>
     </entity>
     <entity name="CDWorkoutTemplate" representedClassName="CDWorkoutTemplate" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="layout" optional="YES" attributeType="String"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
         <relationship name="exercises" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExerciseTemplate" inverseName="template" inverseEntity="CDExerciseTemplate"/>

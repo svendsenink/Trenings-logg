@@ -2,78 +2,92 @@ import SwiftUI
 import CoreData
 
 struct ExportView: View {
+    @Environment(\.dismiss) private var dismiss
     @FetchRequest(
         fetchRequest: CDWorkoutSession.fetchRequest(nil),
         animation: .default
     )
     private var workoutSessions: FetchedResults<CDWorkoutSession>
-    @Environment(\.dismiss) private var dismiss
     
-    private func generateStatistics() -> String {
-        let calendar = Calendar.current
+    private let calendar = Calendar.current
+    
+    // Legg til disse hjelpefunksjonene
+    private var currentMonth: Int? {
+        calendar.component(.month, from: Date())
+    }
+    
+    private var monthlyWorkouts: [CDWorkoutSession] {
         let now = Date()
-        var export = "TRENINGSSTATISTIKK\n\n"
-        
-        // Totalt antall økter
-        export += "Totalt antall økter: \(workoutSessions.count)\n\n"
-        
-        // Månedsoversikt
-        let currentMonth = calendar.component(.month, from: now)
-        let currentYear = calendar.component(.year, from: now)
-        let thisMonthSessions = workoutSessions.filter {
+        return workoutSessions.filter {
             let month = calendar.component(.month, from: $0.date ?? Date())
             let year = calendar.component(.year, from: $0.date ?? Date())
+            let currentMonth = calendar.component(.month, from: now)
+            let currentYear = calendar.component(.year, from: now)
             return month == currentMonth && year == currentYear
         }
+    }
+    
+    private var yearlyWorkouts: [CDWorkoutSession] {
+        let now = Date()
+        return workoutSessions.filter {
+            let year = calendar.component(.year, from: $0.date ?? Date())
+            let currentYear = calendar.component(.year, from: now)
+            return year == currentYear
+        }
+    }
+    
+    private func generateStatistics() -> String {
+        var export = "TRAINING STATISTICS\n\n"
         
-        export += "DENNE MÅNEDEN (\(monthName(currentMonth)))\n"
-        export += "Antall økter: \(thisMonthSessions.count)\n"
-        export += typeStatistics(for: thisMonthSessions)
-        export += "\n"
+        export += "Total workouts: \(workoutSessions.count)\n\n"
         
-        // Årsoversikt
-        let thisYearSessions = workoutSessions.filter {
-            calendar.component(.year, from: $0.date ?? Date()) == currentYear
+        // Denne måneden
+        if let currentMonth = currentMonth {
+            export += "THIS MONTH (\(monthName(currentMonth)))\n"
+            export += "Number of workouts: \(monthlyWorkouts.count)\n"
+            export += typeStatistics(for: monthlyWorkouts)
+            export += "\n"
         }
         
-        export += "DETTE ÅRET (\(currentYear))\n"
-        export += "Antall økter: \(thisYearSessions.count)\n"
-        export += typeStatistics(for: thisYearSessions)
+        // Dette året
+        export += "THIS YEAR (2025)\n"
+        export += "Number of workouts: \(yearlyWorkouts.count)\n"
+        export += typeStatistics(for: yearlyWorkouts)
         export += "\n"
         
-        // Månedlig fordeling dette året
-        export += "MÅNEDLIG FORDELING \(currentYear):\n"
+        // Månedlig fordeling
+        export += "MONTHLY DISTRIBUTION 2025:\n"
         for month in 1...12 {
-            let monthSessions = thisYearSessions.filter {
-                calendar.component(.month, from: $0.date ?? Date()) == month
-            }
-            if monthSessions.count > 0 {
-                export += "\(monthName(month)): \(monthSessions.count) økter\n"
+            let monthlyCount = workoutSessions.filter {
+                let components = calendar.dateComponents([.year, .month], from: $0.date ?? Date())
+                return components.year == 2025 && components.month == month
+            }.count
+            if monthlyCount > 0 {
+                export += "\(monthName(month).lowercased()): \(monthlyCount) workouts\n"
             }
         }
-        export += "\n"
         
         // Vektstatistikk
-        let weightSessions = workoutSessions
-            .filter { $0.bodyWeight?.isEmpty == false }
-            .sorted { ($0.date ?? Date()) > ($1.date ?? Date()) }
-        
-        if let lastWeight = weightSessions.first {
-            export += "VEKTSTATISTIKK\n"
-            export += "Sist målte vekt: \(lastWeight.bodyWeight ?? "") kg"
-            export += " (\(formatDate(lastWeight.date ?? Date())))\n"
+        if let bodyWeightSessions = workoutSessions.filter({ $0.bodyWeight != nil && !$0.bodyWeight!.isEmpty }) as? [CDWorkoutSession] {
+            export += "\nWEIGHT STATISTICS\n"
+            if let lastWeight = bodyWeightSessions.sorted(by: {
+                ($0.date ?? Date()) > ($1.date ?? Date())
+            }).first {
+                export += "Last measured weight: \(lastWeight.bodyWeight ?? "") kg"
+                export += " (\(formatDate(lastWeight.date ?? Date())))\n"
+            }
             
-            if let lowestWeight = weightSessions.min(by: { 
-                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0) 
+            if let lowestWeight = bodyWeightSessions.min(by: {
+                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0)
             }) {
-                export += "Laveste vekt: \(lowestWeight.bodyWeight ?? "") kg"
+                export += "Lowest weight: \(lowestWeight.bodyWeight ?? "") kg"
                 export += " (\(formatDate(lowestWeight.date ?? Date())))\n"
             }
             
-            if let highestWeight = weightSessions.max(by: { 
-                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0) 
+            if let highestWeight = bodyWeightSessions.max(by: {
+                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0)
             }) {
-                export += "Høyeste vekt: \(highestWeight.bodyWeight ?? "") kg"
+                export += "Highest weight: \(highestWeight.bodyWeight ?? "") kg"
                 export += " (\(formatDate(highestWeight.date ?? Date())))\n"
             }
         }
@@ -83,13 +97,15 @@ struct ExportView: View {
     
     private func typeStatistics(for sessions: [CDWorkoutSession]) -> String {
         var typeCount: [String: Int] = [:]
+        
         for session in sessions {
-            typeCount[session.type ?? "", default: 0] += 1
+            let type = session.type ?? ""
+            typeCount[type, default: 0] += 1
         }
         
-        var result = "Fordeling:\n"
+        var result = "Distribution:\n"
         for (type, count) in typeCount.sorted(by: { $0.key < $1.key }) {
-            result += "- \(type): \(count) økter\n"
+            result += "- \(type): \(count) workout\(count == 1 ? "" : "s")\n"
         }
         return result
     }
@@ -115,13 +131,13 @@ struct ExportView: View {
                     .font(.system(.body, design: .monospaced))
                     .padding()
             }
-            .navigationTitle("Treningsstatistikk")
+            .navigationTitle("Training Statistics")
             .navigationBarItems(
-                leading: Button("Lukk") { dismiss() },
+                leading: Button("Close") { dismiss() },
                 trailing: ShareLink(
                     item: generateStatistics(),
-                    subject: Text("Treningsstatistikk"),
-                    message: Text("Her er min treningsstatistikk")
+                    subject: Text("Training Statistics"),
+                    message: Text("Here is my training statistics")
                 )
             )
         }

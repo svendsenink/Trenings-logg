@@ -40,7 +40,7 @@ struct CalendarView: View {
         
         // Legg til dager fra forrige måned
         if offsetDays > 0 {
-            for day in (offsetDays - 1)...0 {
+            for day in (1...offsetDays).reversed() {
                 if let date = calendar.date(byAdding: .day, value: -day, to: monthStart) {
                     days.append(date)
                 }
@@ -68,23 +68,23 @@ struct CalendarView: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 15) {  // Behold spacing mellom elementene
+            // Måned og år header
             HStack {
                 Button(action: previousMonth) {
                     Image(systemName: "chevron.left")
                 }
-                
+                Spacer()
                 Text(monthFormatter.string(from: selectedDate))
-                    .font(.title2)
-                    .frame(maxWidth: .infinity)
-                
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                Spacer()
                 Button(action: nextMonth) {
                     Image(systemName: "chevron.right")
                 }
             }
-            .padding(.horizontal)
             
-            // Ukedager
+            // Ukedager header
             HStack {
                 ForEach(daysInWeek, id: \.self) { day in
                     Text(day)
@@ -96,19 +96,16 @@ struct CalendarView: View {
             // Kalenderdager
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
                 ForEach(days, id: \.self) { date in
-                    DayCell(
+                    CalendarCell(
                         date: date,
-                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
                         isCurrentMonth: calendar.isDate(date, equalTo: selectedDate, toGranularity: .month),
+                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
                         hasWorkout: workoutDates.contains { calendar.isDate($0, inSameDayAs: date) }
                     )
-                    .onTapGesture {
-                        selectedDate = date
-                    }
                 }
             }
         }
-        .padding()
+        .padding(.top, 10)  // Endre fra -20 til 10 for å senke kalenderen
     }
     
     private func previousMonth() {
@@ -122,36 +119,31 @@ struct CalendarView: View {
             selectedDate = newDate
         }
     }
-}
-
-struct DayCell: View {
-    let date: Date
-    let isSelected: Bool
-    let isCurrentMonth: Bool
-    let hasWorkout: Bool
     
-    private let calendar = Calendar.current
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter
-    }()
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(isSelected ? Color.blue : Color.clear)
-                .overlay(
-                    Circle()
-                        .stroke(hasWorkout ? Color.blue : Color.clear, lineWidth: 1)
-                )
-            
+    private func CalendarCell(date: Date, isCurrentMonth: Bool, isSelected: Bool, hasWorkout: Bool) -> some View {
+        Button(action: {
+            selectedDate = date
+        }) {
             Text(dateFormatter.string(from: date))
+                .font(.system(size: 20))  // Øk fontstørrelsen ytterligere
                 .foregroundColor(
                     isSelected ? .white :
+                        hasWorkout ? .green :
                         isCurrentMonth ? .primary : .secondary
                 )
+                .frame(width: 40, height: 40)
+                .background(
+                    Group {
+                        if isSelected {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 36, height: 36)
+                        } else {
+                            Circle()
+                                .fill(Color.clear)
+                        }
+                    }
+                )
         }
-        .frame(height: 35)
     }
 } 
