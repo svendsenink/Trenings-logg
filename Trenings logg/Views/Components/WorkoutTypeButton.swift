@@ -2,16 +2,16 @@ import SwiftUI
 
 struct WorkoutTypeButton: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedDate = Date()
     
     let type: WorkoutCategory
     let icon: String
     let title: String
+    let selectedDate: Date
     
     var body: some View {
         NavigationLink(
             destination: WorkoutLogView(
-                selectedDate: $selectedDate,
+                selectedDate: .constant(selectedDate),
                 selectedCategory: type
             )
         ) {

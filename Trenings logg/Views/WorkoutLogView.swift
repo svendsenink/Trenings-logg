@@ -20,6 +20,7 @@ struct WorkoutLogView: View {
     @State private var selectedTemplate: CDWorkoutTemplate?
     @State private var showingTemplateOptions = false
     @State private var showingTemplateManager = false
+    @State private var selectedTime = Date()
     
     @FetchRequest private var templates: FetchedResults<CDWorkoutTemplate>
     
@@ -48,15 +49,18 @@ struct WorkoutLogView: View {
         // Opprett ny treningsøkt
         let workout = CDWorkoutSession(context: context)
         workout.id = UUID()
-        workout.date = selectedDate
         
-        // For "Other training", bruk malnavnet
-        if selectedCategory == .other {
-            if let template = selectedTemplate {
-                workout.type = "\(selectedCategory.rawValue) (\(template.name ?? ""))"
-            } else {
-                workout.type = "\(selectedCategory.rawValue) (\(selectedLayout.rawValue))"
-            }
+        // Kombiner valgt dato med valgt tid
+        let calendar = Calendar.current
+        let selectedComponents = calendar.dateComponents([.hour, .minute], from: selectedTime)
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        dateComponents.hour = selectedComponents.hour
+        dateComponents.minute = selectedComponents.minute
+        workout.date = calendar.date(from: dateComponents)
+        
+        // Legg til malnavn i type hvis en mal er valgt
+        if let template = selectedTemplate {
+            workout.type = "\(selectedCategory.rawValue) - \(template.name ?? "")"
         } else {
             workout.type = selectedCategory.rawValue
         }
@@ -129,9 +133,9 @@ struct WorkoutLogView: View {
             let templateExercise = CDExerciseTemplate(context: viewContext)
             templateExercise.id = UUID()
             templateExercise.name = exercise.name
-            templateExercise.defaultSets = Int16(exercise.setArray.count)
-            templateExercise.increaseNextTime = exercise.increaseNextTime
             templateExercise.template = template
+            templateExercise.increaseNextTime = exercise.increaseNextTime
+            templateExercise.defaultSets = Int16(exercise.setArray.count)
         }
         
         do {
@@ -175,33 +179,24 @@ struct WorkoutLogView: View {
         let exercise = CDExercise(context: viewContext)
         exercise.id = UUID()
         exercise.name = newExerciseName
+        exercise.layout = selectedLayout.rawValue  // Lagre layout for denne øvelsen
         
         // Legg til standard sett basert på valgt layout
-        if selectedCategory == .other {
-            switch selectedLayout {
-            case .strength:
-                // For styrke - legg til sett med vekt og reps
-                let set = CDSetData(context: viewContext)
-                set.id = UUID()
-                set.exercise = exercise
-                set.weight = ""
-                set.reps = ""
-            case .endurance:
-                // For utholdenhet - legg til sett med tid og distanse
-                let set = CDSetData(context: viewContext)
-                set.id = UUID()
-                set.exercise = exercise
-                set.duration = ""
-                set.distance = ""
-                set.incline = ""
-                set.reps = "" // for speed
-            case .basic:
-                // For basic - legg til bare tid
-                let set = CDSetData(context: viewContext)
-                set.id = UUID()
-                set.exercise = exercise
-                set.duration = ""
-            }
+        let set = CDSetData(context: viewContext)
+        set.id = UUID()
+        set.exercise = exercise
+        
+        switch selectedLayout {
+        case .strength:
+            set.weight = ""
+            set.reps = ""
+        case .endurance:
+            set.duration = ""
+            set.distance = ""
+            set.incline = ""
+            set.reps = "" // for speed
+        case .basic:
+            set.duration = ""
         }
         
         exercises.append(exercise)
@@ -224,6 +219,14 @@ struct WorkoutLogView: View {
                     TextField("", text: .constant(selectedCategory.rawValue))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .disabled(true)
+                }
+                
+                // Tidvelger
+                VStack(alignment: .leading) {
+                    Text("Time:")
+                        .fontWeight(.medium)
+                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
                 }
                 
                 // Velg mal
@@ -348,7 +351,6 @@ struct WorkoutLogView: View {
                 AddExerciseView(
                     newExerciseName: $newExerciseName,
                     selectedLayout: $selectedLayout,
-                    isFirstExercise: exercises.isEmpty,  // Vis layout-velger kun hvis ingen øvelser
                     onAdd: {
                         addNewExercise()
                         showingAddExercise = false
@@ -383,10 +385,12 @@ struct WorkoutLogView: View {
         
         // Legg til øvelser fra malen
         for templateExercise in template.exerciseArray {
+            print("Loading exercise: \(templateExercise.name ?? ""), defaultSets: \(templateExercise.defaultSets)")
             let exercise = CDExercise(context: viewContext)
             exercise.id = UUID()
             exercise.name = templateExercise.name
             exercise.increaseNextTime = templateExercise.increaseNextTime
+            exercise.layout = template.layout  // Sett layout fra malen
             
             // Finn matching øvelse fra siste økt
             if let lastSession = try? viewContext.fetch(request).first,
@@ -406,11 +410,27 @@ struct WorkoutLogView: View {
                     set.restPeriod = lastSet.restPeriod
                 }
             } else {
-                // Hvis ingen tidligere økt, legg til tomme sett
+                // Hvis ingen tidligere økt finnes, legg til standard antall sett fra malen
                 for _ in 0..<templateExercise.defaultSets {
                     let set = CDSetData(context: viewContext)
                     set.id = UUID()
                     set.exercise = exercise
+                    
+                    // Initialiser tomme felt basert på layout
+                    switch WorkoutLayout(rawValue: template.layout ?? "") {
+                    case .strength:
+                        set.weight = ""
+                        set.reps = ""
+                    case .endurance:
+                        set.duration = ""
+                        set.distance = ""
+                        set.incline = ""
+                        set.reps = "" // for speed
+                    case .basic:
+                        set.duration = ""
+                    case .none:
+                        break
+                    }
                 }
             }
             

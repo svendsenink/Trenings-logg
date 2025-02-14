@@ -60,36 +60,42 @@ struct WorkoutCategoryCard: View {
 }
 
 struct WorkoutSelectionView: View {
-    @State private var selectedDate = Date()
+    let selectedDate: Date
+    
+    init(selectedDate: Date = Date()) {
+        self.selectedDate = selectedDate
+    }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 30) {
-                Text("Select workout type")
-                    .font(.title)
-                    .fontWeight(.bold)
+        VStack(spacing: 40) {
+            Text("Select workout type")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            HStack(spacing: 20) {
+                WorkoutTypeButton(
+                    type: .strength,
+                    icon: "figure.strengthtraining.traditional",
+                    title: "Strength",
+                    selectedDate: selectedDate
+                )
                 
-                HStack(spacing: 40) {
-                    WorkoutTypeButton(
-                        type: .strength,
-                        icon: "dumbbell.fill",
-                        title: "Strength"
-                    )
-                    
-                    WorkoutTypeButton(
-                        type: .endurance,
-                        icon: "figure.run",
-                        title: "Endurance"
-                    )
-                }
+                WorkoutTypeButton(
+                    type: .endurance,
+                    icon: "figure.run",
+                    title: "Endurance",
+                    selectedDate: selectedDate
+                )
                 
                 WorkoutTypeButton(
                     type: .other,
                     icon: "figure.mixed.cardio",
-                    title: "Other"
+                    title: "Other",
+                    selectedDate: selectedDate
                 )
             }
-            .padding()
         }
+        .padding()
+        .navigationBarTitleDisplayMode(.inline)  // Endre til inline tittel
     }
 } 

@@ -5,6 +5,7 @@ struct WorkoutHistoryView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Binding var selectedDate: Date
     @State private var showingStatistics = false
+    @State private var showingWorkoutSelection = false
     
     @FetchRequest(
         fetchRequest: CDWorkoutSession.fetchRequest(nil),
@@ -24,6 +25,16 @@ struct WorkoutHistoryView: View {
             )
             
             List {
+                Button(action: {
+                    showingWorkoutSelection = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add workout")
+                    }
+                    .foregroundColor(.blue)
+                }
+                
                 ForEach(filteredSessions) { session in
                     WorkoutSessionView(session: session)
                 }
@@ -51,6 +62,11 @@ struct WorkoutHistoryView: View {
         }
         .sheet(isPresented: $showingStatistics) {
             ExportView()
+        }
+        .sheet(isPresented: $showingWorkoutSelection) {
+            NavigationView {
+                WorkoutSelectionView(selectedDate: selectedDate)
+            }
         }
     }
     

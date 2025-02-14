@@ -4,6 +4,7 @@
     <entity name="CDExercise" representedClassName="CDExercise" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="increaseNextTime" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="layout" optional="YES" attributeType="String"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <relationship name="session" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDWorkoutSession" inverseName="exercises" inverseEntity="CDWorkoutSession"/>
         <relationship name="sets" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDSetData" inverseName="exercise" inverseEntity="CDSetData"/>

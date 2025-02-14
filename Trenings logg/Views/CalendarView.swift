@@ -84,6 +84,13 @@ struct CalendarView: View {
                 }
             }
             
+            // Legg til "I dag" knapp
+            Button(action: goToToday) {
+                Label("I dag", systemImage: "calendar")
+                    .foregroundColor(.blue)
+            }
+            .padding(.bottom, 5)
+            
             // Ukedager header
             HStack {
                 ForEach(daysInWeek, id: \.self) { day in
@@ -118,6 +125,10 @@ struct CalendarView: View {
         if let newDate = calendar.date(byAdding: .month, value: 1, to: selectedDate) {
             selectedDate = newDate
         }
+    }
+    
+    private func goToToday() {
+        selectedDate = Date()
     }
     
     private func CalendarCell(date: Date, isCurrentMonth: Bool, isSelected: Bool, hasWorkout: Bool) -> some View {

@@ -485,8 +485,9 @@ struct ExerciseView: View {
             }
             
             Group {
-                if selectedCategory == .other {
-                    switch selectedLayout {
+                if let layoutString = exercise.layout,
+                   let layout = WorkoutLayout(rawValue: layoutString) {
+                    switch layout {
                     case .strength:
                         buildStrengthSetView()
                     case .endurance:
@@ -494,10 +495,6 @@ struct ExerciseView: View {
                     case .basic:
                         buildBasicSetView()
                     }
-                } else if selectedCategory == .strength {
-                    buildStrengthSetView()
-                } else if selectedCategory == .endurance {
-                    buildEnduranceSetView()
                 }
             }
             
@@ -531,28 +528,114 @@ struct ExerciseView: View {
     }
     
     private func buildBasicSetView() -> some View {
-        HStack {
-            Text("Time:")
-                .frame(width: 40)
-            TextField("min", text: Binding(
-                get: { exercise.setArray.first?.duration ?? "" },
-                set: { 
-                    if exercise.setArray.isEmpty {
-                        let set = CDSetData(context: viewContext)
-                        set.id = UUID()
-                        set.exercise = exercise
-                        set.duration = $0
-                    } else {
-                        exercise.setArray[0].duration = $0
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack {
+                Text("Set")
+                    .frame(width: 40)
+                Text("Time")
+                    .frame(width: 60)
+                Spacer()
+                Button(action: addSet) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+                .padding(.vertical, 5)
+            }
+            .font(.caption)
+            .fontWeight(.medium)
+            
+            // Sett
+            ForEach(sets) { set in
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("\(sets.firstIndex(of: set)! + 1)")
+                            .frame(width: 40)
+                        
+                        let timeId = "\(set.id?.uuidString ?? "")-time"
+                        TextField("", text: Binding(
+                            get: { 
+                                if justGotFocus.contains(timeId) {
+                                    return ""
+                                } else if isEditing.contains(timeId) {
+                                    return set.duration ?? ""
+                                } else {
+                                    return previousValues[timeId] ?? ""
+                                }
+                            },
+                            set: { 
+                                set.duration = $0
+                                if !$0.isEmpty {
+                                    isEditing.insert(timeId)
+                                    justGotFocus.remove(timeId)
+                                }
+                                try? viewContext.save()
+                            }
+                        ))
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(width: 60)
+                        .keyboardType(.numberPad)
+                        .foregroundColor(isEditing.contains(timeId) ? .primary : .gray)
+                        .focused($focusedField, equals: timeId)
+                        .onChange(of: focusedField) { _, newValue in
+                            if newValue == timeId {
+                                justGotFocus.insert(timeId)
+                            }
+                        }
+                        
+                        Text("minutes")
+                            .foregroundColor(.gray)
+                        
+                        if sets.count > 1 {
+                            Button(action: { deleteSet(set) }) {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                    
+                    // Rest periode (vis bare hvis det ikke er siste sett)
+                    if sets.firstIndex(of: set)! < sets.count - 1 {
+                        HStack {
+                            Text("Rest:")
+                                .font(.caption)
+                                .frame(width: 40, alignment: .leading)
+                            
+                            let restId = "\(set.id?.uuidString ?? "")-rest"
+                            TextField("", text: Binding(
+                                get: { 
+                                    if justGotFocus.contains(restId) {
+                                        return ""
+                                    } else if isEditing.contains(restId) {
+                                        return set.restPeriod ?? ""
+                                    } else {
+                                        return previousValues[restId] ?? ""
+                                    }
+                                },
+                                set: { 
+                                    set.restPeriod = $0
+                                    if !$0.isEmpty {
+                                        isEditing.insert(restId)
+                                        justGotFocus.remove(restId)
+                                    }
+                                    try? viewContext.save()
+                                }
+                            ))
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(width: 60)
+                            .keyboardType(.numberPad)
+                            .foregroundColor(isEditing.contains(restId) ? .primary : .gray)
+                            .focused($focusedField, equals: restId)
+                            .onChange(of: focusedField) { _, newValue in
+                                if newValue == restId {
+                                    justGotFocus.insert(restId)
+                                }
+                            }
+                        }
                     }
                 }
-            ))
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .frame(width: 60)
-            .keyboardType(.numberPad)
-            Text("minutes")
-                .foregroundColor(.gray)
-            Spacer()
+            }
         }
     }
 } 

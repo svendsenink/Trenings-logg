@@ -25,6 +25,11 @@ struct TreningsLoggContentView: View {
                 }
                 .tag(1)
             }
+            .onChange(of: selectedTab) { _, newValue in
+                if newValue == 1 {
+                    selectedDate = Date()  // Gå til dagens dato når kalenderfanen velges
+                }
+            }
             .preferredColorScheme(.dark)
         }
     }
