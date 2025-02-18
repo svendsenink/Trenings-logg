@@ -1,4 +1,5 @@
 import SwiftUI
+import HealthKit
 
 struct WorkoutCategoryCard: View {
     let category: WorkoutCategory
@@ -62,40 +63,41 @@ struct WorkoutCategoryCard: View {
 struct WorkoutSelectionView: View {
     let selectedDate: Date
     
-    init(selectedDate: Date = Date()) {
-        self.selectedDate = selectedDate
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [
+                GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 20)
+            ], spacing: 20) {
+                ForEach(WorkoutCategory.allHealthKitTypes, id: \.rawValue) { type in
+                    WorkoutTypeButton(
+                        type: WorkoutCategory.from(healthKitType: type),
+                        icon: iconName(for: type),
+                        title: WorkoutCategory.name(for: type),
+                        selectedDate: selectedDate
+                    )
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("New workout")
     }
     
-    var body: some View {
-        VStack(spacing: 40) {
-            Text("Select workout type")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            HStack(spacing: 20) {
-                WorkoutTypeButton(
-                    type: .strength,
-                    icon: "figure.strengthtraining.traditional",
-                    title: "Strength",
-                    selectedDate: selectedDate
-                )
-                
-                WorkoutTypeButton(
-                    type: .endurance,
-                    icon: "figure.run",
-                    title: "Endurance",
-                    selectedDate: selectedDate
-                )
-                
-                WorkoutTypeButton(
-                    type: .other,
-                    icon: "figure.mixed.cardio",
-                    title: "Other",
-                    selectedDate: selectedDate
-                )
-            }
+    private func iconName(for type: HKWorkoutActivityType) -> String {
+        switch type {
+        case .traditionalStrengthTraining: return "figure.strengthtraining.traditional"
+        case .functionalStrengthTraining: return "figure.strengthtraining.functional"
+        case .running: return "figure.run"
+        case .walking: return "figure.walk"
+        case .cycling: return "figure.cycling"
+        case .swimming: return "figure.pool.swim"
+        case .hiking: return "figure.hiking"
+        case .rowing: return "figure.rower"
+        case .crossTraining: return "figure.mixed.cardio"
+        case .yoga: return "figure.yoga"
+        case .pilates: return "figure.pilates"
+        case .boxing: return "figure.boxing"
+        case .other: return "figure.mixed.cardio"
+        default: return "figure.mixed.cardio"
         }
-        .padding()
-        .navigationBarTitleDisplayMode(.inline)  // Endre til inline tittel
     }
 } 

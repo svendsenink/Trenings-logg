@@ -12,7 +12,7 @@ extension CDWorkoutSession {
     
     var exerciseArray: [CDExercise] {
         let set = exercises as? Set<CDExercise> ?? []
-        return set.sorted { ($0.name ?? "") < ($1.name ?? "") }
+        return Array(set).sorted { ($0.name ?? "") < ($1.name ?? "") }
     }
 }
 

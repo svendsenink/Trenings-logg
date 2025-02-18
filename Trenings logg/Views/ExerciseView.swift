@@ -196,9 +196,15 @@ struct ExerciseView: View {
                             set.weight = newValue
                             if !newValue.isEmpty {
                                 isEditing.insert(weightId)
-                                justGotFocus.remove(weightId)  // Fjern fra justGotFocus når brukeren begynner å skrive
+                                justGotFocus.remove(weightId)
+                                
+                                // Lagre umiddelbart etter hver endring
+                                do {
+                                    try viewContext.save()
+                                } catch {
+                                    print("Error auto-saving: \(error)")
+                                }
                             }
-                            try? viewContext.save()
                         }
                     ))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -227,9 +233,15 @@ struct ExerciseView: View {
                             set.reps = newValue
                             if !newValue.isEmpty {
                                 isEditing.insert(repsId)
-                                justGotFocus.remove(repsId)  // Fjern fra justGotFocus når brukeren begynner å skrive
+                                justGotFocus.remove(repsId)
+                                
+                                // Lagre umiddelbart etter hver endring
+                                do {
+                                    try viewContext.save()
+                                } catch {
+                                    print("Error auto-saving: \(error)")
+                                }
                             }
-                            try? viewContext.save()
                         }
                     ))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -302,8 +314,14 @@ struct ExerciseView: View {
                                 if !newValue.isEmpty {
                                     isEditing.insert(speedId)
                                     justGotFocus.remove(speedId)
+                                    
+                                    // Lagre umiddelbart etter hver endring
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Error auto-saving: \(error)")
+                                    }
                                 }
-                                try? viewContext.save()
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -333,8 +351,14 @@ struct ExerciseView: View {
                                 if !newValue.isEmpty {
                                     isEditing.insert(inclineId)
                                     justGotFocus.remove(inclineId)
+                                    
+                                    // Lagre umiddelbart etter hver endring
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Error auto-saving: \(error)")
+                                    }
                                 }
-                                try? viewContext.save()
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -364,8 +388,14 @@ struct ExerciseView: View {
                                 if !newValue.isEmpty {
                                     isEditing.insert(timeId)
                                     justGotFocus.remove(timeId)
+                                    
+                                    // Lagre umiddelbart etter hver endring
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Error auto-saving: \(error)")
+                                    }
                                 }
-                                try? viewContext.save()
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -395,8 +425,14 @@ struct ExerciseView: View {
                                 if !newValue.isEmpty {
                                     isEditing.insert(distId)
                                     justGotFocus.remove(distId)
+                                    
+                                    // Lagre umiddelbart etter hver endring
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Error auto-saving: \(error)")
+                                    }
                                 }
-                                try? viewContext.save()
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -441,8 +477,14 @@ struct ExerciseView: View {
                                     if !newValue.isEmpty {
                                         isEditing.insert(restId)
                                         justGotFocus.remove(restId)
+                                        
+                                        // Lagre umiddelbart etter hver endring
+                                        do {
+                                            try viewContext.save()
+                                        } catch {
+                                            print("Error auto-saving: \(error)")
+                                        }
                                     }
-                                    try? viewContext.save()
                                 }
                             ))
                             .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -564,13 +606,19 @@ struct ExerciseView: View {
                                     return previousValues[timeId] ?? ""
                                 }
                             },
-                            set: { 
-                                set.duration = $0
-                                if !$0.isEmpty {
+                            set: { newValue in
+                                set.duration = newValue
+                                if !newValue.isEmpty {
                                     isEditing.insert(timeId)
                                     justGotFocus.remove(timeId)
+                                    
+                                    // Lagre umiddelbart etter hver endring
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Error auto-saving: \(error)")
+                                    }
                                 }
-                                try? viewContext.save()
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -613,13 +661,19 @@ struct ExerciseView: View {
                                         return previousValues[restId] ?? ""
                                     }
                                 },
-                                set: { 
-                                    set.restPeriod = $0
-                                    if !$0.isEmpty {
+                                set: { newValue in
+                                    set.restPeriod = newValue
+                                    if !newValue.isEmpty {
                                         isEditing.insert(restId)
                                         justGotFocus.remove(restId)
+                                        
+                                        // Lagre umiddelbart etter hver endring
+                                        do {
+                                            try viewContext.save()
+                                        } catch {
+                                            print("Error auto-saving: \(error)")
+                                        }
                                     }
-                                    try? viewContext.save()
                                 }
                             ))
                             .textFieldStyle(RoundedBorderTextFieldStyle())

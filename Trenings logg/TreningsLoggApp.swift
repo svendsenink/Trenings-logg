@@ -4,6 +4,10 @@ import SwiftUI
 struct TreningsLoggApp: App {
     let persistenceController = PersistenceController.shared
     
+    init() {
+        print("APP STARTER NÅ!")
+    }
+    
     var body: some Scene {
         WindowGroup {
             NavigationView {

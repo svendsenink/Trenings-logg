@@ -10,7 +10,7 @@ struct TreningsLoggContentView: View {
         NavigationStack {
             TabView(selection: $selectedTab) {
                 NavigationView {
-                    WorkoutSelectionView()
+                    WorkoutSelectionView(selectedDate: selectedDate)
                 }
                 .tabItem {
                     Label("New workout", systemImage: "plus.circle.fill")

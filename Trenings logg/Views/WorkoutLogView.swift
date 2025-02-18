@@ -24,6 +24,8 @@ struct WorkoutLogView: View {
     
     @FetchRequest private var templates: FetchedResults<CDWorkoutTemplate>
     
+    @State private var autoSaveTimer: Timer?
+    
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -360,6 +362,25 @@ struct WorkoutLogView: View {
         }
         .sheet(isPresented: $showingTemplateManager) {
             TemplateManagerView()
+        }
+        .onAppear {
+            // Start auto-save timer
+            autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+                do {
+                    try viewContext.save()
+                } catch {
+                    print("Error auto-saving: \(error)")
+                }
+            }
+        }
+        .onDisappear {
+            // Stopp timer og lagre en siste gang
+            autoSaveTimer?.invalidate()
+            do {
+                try viewContext.save()
+            } catch {
+                print("Error saving on disappear: \(error)")
+            }
         }
     }
     
