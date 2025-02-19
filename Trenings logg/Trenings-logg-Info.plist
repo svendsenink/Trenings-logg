@@ -6,5 +6,9 @@
     <string>Vi trenger tilgang til treningsdata for å importere økter fra Health-appen</string>
     <key>NSHealthUpdateUsageDescription</key>
     <string>Vi trenger tilgang til å lagre treningsdata i Health-appen</string>
+    <key>Privacy - Health Share Usage Description</key>
+    <string>Vi trenger tilgang til treningsdata for å importere økter fra Health-appen</string>
+    <key>Privacy - Health Update Usage Description</key>
+    <string>Vi trenger tilgang til å lagre treningsdata i Health-appen</string>
 </dict>
 </plist> 

@@ -88,7 +88,7 @@ struct WorkoutSelectionView: View {
         case .functionalStrengthTraining: return "figure.strengthtraining.functional"
         case .running: return "figure.run"
         case .walking: return "figure.walk"
-        case .cycling: return "figure.cycling"
+        case .cycling: return "bicycle"
         case .swimming: return "figure.pool.swim"
         case .hiking: return "figure.hiking"
         case .rowing: return "figure.rower"
