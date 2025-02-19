@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Vi trenger tilgang til treningsdata for å importere økter fra Health-appen</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Vi trenger tilgang til å lagre treningsdata i Health-appen</string>
+</dict>
+</plist> 
