@@ -214,66 +214,50 @@ struct WorkoutLogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Type økt
-                VStack(alignment: .leading) {
-                    Text("Workout type:")
-                        .fontWeight(.medium)
-                    TextField("", text: .constant(selectedCategory.rawValue))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(true)
-                }
-                
-                // Tidvelger
-                VStack(alignment: .leading) {
-                    Text("Time:")
-                        .fontWeight(.medium)
-                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                }
-                
                 // Velg mal
-                if !templates.isEmpty {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Select template:")
-                                .fontWeight(.medium)
-                            Spacer()
-                            Button(action: {
-                                showingTemplateManager = true
-                            }) {
-                                Image(systemName: "gear")
-                            }
-                        }
-                        Picker("Select template", selection: $selectedTemplate) {
-                            Text("No template").tag(nil as CDWorkoutTemplate?)
-                            ForEach(templates) { template in
-                                Text(template.name ?? "").tag(template as CDWorkoutTemplate?)
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                        .onChange(of: selectedTemplate) { _, template in
-                            if let template = template {
-                                loadTemplate(template)
-                            }
-                        }
+                HStack {
+                    Text("Select template:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Button(action: {
+                        showingTemplateManager = true
+                    }) {
+                        Image(systemName: "gear")
+                            .foregroundColor(.blue)
                     }
                 }
                 
+                Picker("Template", selection: $selectedTemplate) {
+                    Text("No template")
+                        .tag(nil as CDWorkoutTemplate?)
+                    
+                    if !templates.isEmpty {
+                        Divider()
+                        ForEach(templates) { template in
+                            Text(template.name ?? "")
+                                .tag(template as CDWorkoutTemplate?)
+                        }
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.blue)
+                
                 // Øvelser
-                ForEach(exercises.indices, id: \.self) { index in
+                ForEach($exercises) { $exercise in
                     ExerciseView(
-                        exercise: $exercises[index],
+                        exercise: $exercise,
                         selectedCategory: selectedCategory,
                         selectedLayout: selectedLayout
                     )
                 }
                 
-                // Legg til øvelse knapp
                 Button(action: {
                     showingAddExercise = true
                 }) {
                     Label("Add exercise", systemImage: "plus.circle.fill")
+                        .foregroundColor(.blue)
                 }
+                .padding(.vertical, 8)
                 
                 // Noter
                 VStack(alignment: .leading) {
@@ -281,7 +265,10 @@ struct WorkoutLogView: View {
                         .fontWeight(.medium)
                     TextEditor(text: $notes)
                         .frame(height: 100)
-                        .border(Color.gray.opacity(0.2))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
                 }
                 
                 // Kalorier og kroppsvekt
@@ -293,6 +280,7 @@ struct WorkoutLogView: View {
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .keyboardType(.numberPad)
                     }
+                    .frame(maxWidth: .infinity)
                     
                     VStack(alignment: .leading) {
                         Text("Body weight:")
@@ -301,11 +289,13 @@ struct WorkoutLogView: View {
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .keyboardType(.decimalPad)
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .padding()
         }
-        .navigationTitle("New workout")
+        .navigationTitle(selectedCategory.rawValue)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Save") {
@@ -313,53 +303,8 @@ struct WorkoutLogView: View {
                 }
             }
         }
-        .alert("Save as template", isPresented: $showingSaveTemplateAlert) {
-            if let templateName = selectedTemplate?.name {
-                Text("Would you like to update the template '\(templateName)' with these changes?")
-                Button("No", role: .cancel) {
-                    showingSaveTemplateAlert = false
-                    dismiss()
-                }
-                Button("Yes", role: .none) {
-                    updateExistingTemplate()
-                }
-                Button("Continue editing") {
-                    showingSaveTemplateAlert = false
-                }
-            } else {
-                TextField("Template name", text: $newTemplateName)
-                Button("No", role: .cancel) {
-                    showingSaveTemplateAlert = false
-                    dismiss()
-                }
-                Button("Yes") {
-                    saveTemplate()
-                }
-                Button("Continue editing") {
-                    showingSaveTemplateAlert = false
-                }
-            }
-        } message: {
-            if selectedTemplate == nil {
-                Text("Would you like to save this workout as a template?")
-            }
-        }
-        .alert("Template exists", isPresented: $showingTemplateOptions) {
-            Button("Cancel", role: .cancel) {
-                showingTemplateOptions = false
-                newTemplateName = ""
-            }
-            Button("Update existing", role: .destructive) {
-                updateExistingTemplate()
-            }
-            Button("Create new with different name") {
-                showingTemplateOptions = false
-            }
-        } message: {
-            Text("A template with this name already exists. Do you want to update the existing template or create a new one with a different name?")
-        }
         .sheet(isPresented: $showingAddExercise) {
-            NavigationStack {
+            NavigationView {
                 AddExerciseView(
                     newExerciseName: $newExerciseName,
                     selectedLayout: $selectedLayout,
@@ -373,23 +318,29 @@ struct WorkoutLogView: View {
         .sheet(isPresented: $showingTemplateManager) {
             TemplateManagerView()
         }
-        .onAppear {
-            // Start auto-save timer
-            autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-                do {
-                    try viewContext.save()
-                } catch {
-                    print("Error auto-saving: \(error)")
+        .alert("Save as template?", isPresented: $showingSaveTemplateAlert) {
+            TextField("Template name", text: $newTemplateName)
+            Button("Cancel", role: .cancel) {
+                dismiss()
+            }
+            Button(selectedTemplate != nil ? "Update" : "Save") {
+                if selectedTemplate != nil {
+                    updateExistingTemplate()
+                } else {
+                    saveTemplate()
                 }
             }
+        } message: {
+            if selectedTemplate != nil {
+                Text("Do you want to update the existing template with these changes?")
+            } else {
+                Text("Would you like to save this workout as a template for future use?")
+            }
         }
-        .onDisappear {
-            // Stopp timer og lagre en siste gang
-            autoSaveTimer?.invalidate()
-            do {
-                try viewContext.save()
-            } catch {
-                print("Error saving on disappear: \(error)")
+        .onAppear {
+            selectedTime = Date()
+            if let template = selectedTemplate {
+                loadTemplate(template)
             }
         }
     }

@@ -92,7 +92,8 @@ struct ExportView: View {
         }
         
         // Vektstatistikk
-        if let bodyWeightSessions = workoutSessions.filter({ $0.bodyWeight != nil && !$0.bodyWeight!.isEmpty }) as? [CDWorkoutSession] {
+        let bodyWeightSessions = workoutSessions.filter { $0.bodyWeight != nil && !$0.bodyWeight!.isEmpty }
+        if !bodyWeightSessions.isEmpty {
             stats += "\nWEIGHT STATISTICS\n"
             if let lastWeight = bodyWeightSessions.sorted(by: {
                 ($0.date ?? Date()) > ($1.date ?? Date())

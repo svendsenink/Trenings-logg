@@ -172,18 +172,16 @@ struct CalendarView: View {
             Text(dateFormatter.string(from: date))
                 .foregroundColor(isSelected ? .white : .primary)
                 .opacity(isDateInCurrentMonth(date) ? 1.0 : 0.3)
-                .frame(width: 40, height: 40)
+                .frame(width: 32, height: 32)
                 .background(
                     Group {
                         if isSelected {
-                            Circle()
+                            RoundedRectangle(cornerRadius: 8)
                                 .fill(Color.blue)
                         } else if hasWorkout,
                                 let category = getWorkoutCategory(for: date) {
-                            Circle()
-                                .fill(category.themeColor)
-                                .frame(width: 32, height: 32)
-                                .opacity(0.3)
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(category.themeColor, lineWidth: 2)
                         }
                     }
                 )
