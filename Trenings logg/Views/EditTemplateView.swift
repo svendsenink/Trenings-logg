@@ -1,81 +1,103 @@
 import SwiftUI
-import CoreData
 
 struct EditTemplateView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject private var cloudKitManager: CloudKitManager
     @Environment(\.dismiss) private var dismiss
     
-    let template: CDWorkoutTemplate
-    @State private var name: String
-    @FetchRequest private var exercises: FetchedResults<CDExerciseTemplate>
+    let template: WorkoutTemplate
+    @State private var exercises: [ExerciseTemplate]
+    @State private var isLoading = true
+    @State private var showingAddExercise = false
+    @State private var newExerciseName = ""
+    @State private var newExerciseSets = 3
     
-    init(template: CDWorkoutTemplate) {
+    init(template: WorkoutTemplate) {
         self.template = template
-        _name = State(initialValue: template.name ?? "")
-        
-        let predicate = NSPredicate(format: "template == %@", template)
-        let sortDescriptor = NSSortDescriptor(keyPath: \CDExerciseTemplate.order, ascending: true)
-        
-        _exercises = FetchRequest(
-            fetchRequest: CDExerciseTemplate.fetchRequest(predicate, sortDescriptors: [sortDescriptor]),
-            animation: .default
-        )
+        self._exercises = State(initialValue: template.exercises ?? [])
     }
     
-    var body: some View {
-        Form {
-            Section(header: Text("Template Name")) {
-                TextField("Name", text: $name)
-            }
-            
-            Section(header: Text("Exercises")) {
-                ForEach(exercises) { exercise in
-                    HStack {
-                        Text(exercise.name ?? "")
-                        Spacer()
-                        Text("\(exercise.defaultSets) sets")
-                            .foregroundColor(.gray)
-                    }
-                }
-                .onMove(perform: moveExercise)
-                .onDelete(perform: deleteExercise)
-            }
-        }
-        .navigationTitle("Edit Template")
-        .navigationBarItems(
-            trailing: Button("Save") {
-                saveTemplate()
-            }
+    private func addExercise() {
+        let newExercise = ExerciseTemplate(
+            name: newExerciseName,
+            layout: .basic,
+            defaultSets: newExerciseSets
         )
-    }
-    
-    private func moveExercise(from source: IndexSet, to destination: Int) {
-        var updatedExercises = exercises.map { $0 }
-        updatedExercises.move(fromOffsets: source, toOffset: destination)
+        exercises.append(newExercise)
         
-        // Oppdater rekkefølgen i Core Data
-        for (index, exercise) in updatedExercises.enumerated() {
-            exercise.order = Int16(index)
+        // Oppdater malen
+        var updatedTemplate = template
+        updatedTemplate.exercises = exercises
+        
+        Task {
+            do {
+                try await cloudKitManager.saveTemplate(updatedTemplate)
+                newExerciseName = ""
+                showingAddExercise = false
+            } catch {
+                print("Error saving template: \(error)")
+            }
         }
-        
-        try? viewContext.save()
     }
     
     private func deleteExercise(at offsets: IndexSet) {
-        withAnimation {
-            offsets.map { exercises[$0] }.forEach(viewContext.delete)
-            try? viewContext.save()
+        exercises.remove(atOffsets: offsets)
+        
+        // Oppdater malen
+        var updatedTemplate = template
+        updatedTemplate.exercises = exercises
+        
+        Task {
+            do {
+                try await cloudKitManager.saveTemplate(updatedTemplate)
+            } catch {
+                print("Error saving template: \(error)")
+            }
         }
     }
     
-    private func saveTemplate() {
-        template.name = name
-        
-        do {
-            try viewContext.save()
-            dismiss()
-        } catch {
-            print("Error saving template: \(error)")
+    var body: some View {
+        List {
+            ForEach(exercises.indices, id: \.self) { index in
+                HStack {
+                    Text(exercises[index].name)
+                    Spacer()
+                    Text("\(exercises[index].defaultSets) sett")
+                        .foregroundColor(.gray)
+                }
+            }
+            .onDelete(perform: deleteExercise)
+            
+            Button(action: { showingAddExercise = true }) {
+                Label("Legg til øvelse", systemImage: "plus")
+            }
         }
+        .navigationTitle(template.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Legg til øvelse", isPresented: $showingAddExercise) {
+            VStack {
+                TextField("Navn på øvelse", text: $newExerciseName)
+                Stepper("Antall sett: \(newExerciseSets)", value: $newExerciseSets, in: 1...10)
+            }
+            Button("Avbryt", role: .cancel) { }
+            Button("Legg til") {
+                addExercise()
+            }
+        }
+    }
+}
+
+#Preview {
+    NavigationView {
+        EditTemplateView(
+            template: WorkoutTemplate(
+                name: "Overkropp",
+                type: "Styrke",
+                exercises: [
+                    ExerciseTemplate(name: "Benkpress", defaultSets: 3),
+                    ExerciseTemplate(name: "Skulderpress", defaultSets: 3)
+                ]
+            )
+        )
+        .environmentObject(CloudKitManager.shared)
     }
 } 

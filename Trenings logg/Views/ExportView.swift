@@ -1,150 +1,98 @@
 import SwiftUI
-import CoreData
+import UniformTypeIdentifiers
 
 struct ExportView: View {
-    @Environment(\.dismiss) private var dismiss
-    @FetchRequest(
-        fetchRequest: CDWorkoutSession.fetchRequest(nil),
-        animation: .default
-    )
-    private var workoutSessions: FetchedResults<CDWorkoutSession>
-    
-    private let calendar = Calendar.current
-    
-    // Legg til disse hjelpefunksjonene
-    private var currentMonth: Int? {
-        calendar.component(.month, from: Date())
-    }
-    
-    private var monthlyWorkouts: [CDWorkoutSession] {
-        let now = Date()
-        return workoutSessions.filter {
-            let month = calendar.component(.month, from: $0.date ?? Date())
-            let year = calendar.component(.year, from: $0.date ?? Date())
-            let currentMonth = calendar.component(.month, from: now)
-            let currentYear = calendar.component(.year, from: now)
-            return month == currentMonth && year == currentYear
-        }
-    }
-    
-    private var yearlyWorkouts: [CDWorkoutSession] {
-        let now = Date()
-        return workoutSessions.filter {
-            let year = calendar.component(.year, from: $0.date ?? Date())
-            let currentYear = calendar.component(.year, from: now)
-            return year == currentYear
-        }
-    }
+    @EnvironmentObject var cloudKitManager: CloudKitManager
+    @State private var workoutSessions: [WorkoutSession] = []
+    @State private var isExporting = false
+    @State private var exportData: Data?
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                Text(generateStatistics())
-                    .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+        NavigationView {
+            VStack {
+                if !workoutSessions.isEmpty {
+                    List {
+                        ForEach(workoutSessions) { session in
+                            VStack(alignment: .leading) {
+                                Text(session.type)
+                                    .font(.headline)
+                                Text(session.date.formatted())
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
+                } else {
+                    Text("Ingen treningsøkter å eksportere")
+                        .foregroundColor(.secondary)
+                }
+                
+                Button(action: exportWorkouts) {
+                    Text("Eksporter treningsøkter")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .padding()
             }
-            .navigationTitle("Training Statistics")
-            .navigationBarItems(
-                leading: Button("Close") { dismiss() },
-                trailing: ShareLink(
-                    item: generateStatistics(),
-                    subject: Text("Training Statistics"),
-                    message: Text("Here is my training statistics")
-                )
-            )
+            .navigationTitle("Eksporter treningsøkter")
+            .task {
+                await loadWorkouts()
+            }
+            .fileExporter(
+                isPresented: $isExporting,
+                document: WorkoutExportDocument(data: exportData ?? Data()),
+                contentType: .json,
+                defaultFilename: "treningsokter.json"
+            ) { result in
+                switch result {
+                case .success(let url):
+                    print("Eksportert til: \(url)")
+                case .failure(let error):
+                    print("Eksportfeil: \(error.localizedDescription)")
+                }
+            }
         }
     }
     
-    private func generateStatistics() -> String {
-        var stats = ""
-        
-        // Total antall økter
-        stats += "Total workouts: \(workoutSessions.count)\n\n"
-        
-        // Denne månedens statistikk
-        let thisMonth = Calendar.current.component(.month, from: Date())
-        let thisMonthWorkouts = workoutSessions.filter { 
-            Calendar.current.component(.month, from: $0.date ?? Date()) == thisMonth 
+    private func loadWorkouts() async {
+        do {
+            workoutSessions = try await cloudKitManager.fetchAllWorkoutSessions()
+        } catch {
+            print("Feil ved lasting av treningsøkter: \(error)")
         }
-        
-        stats += "THIS MONTH (\(Calendar.current.monthSymbols[thisMonth - 1].lowercased()))\n"
-        stats += "Number of workouts: \(thisMonthWorkouts.count)\n"
-        stats += typeStatistics(for: thisMonthWorkouts)
-        stats += "\n"
-        
-        // Dette året
-        stats += "THIS YEAR (2025)\n"
-        stats += "Number of workouts: \(yearlyWorkouts.count)\n"
-        stats += typeStatistics(for: yearlyWorkouts)
-        stats += "\n"
-        
-        // Månedlig fordeling
-        stats += "MONTHLY DISTRIBUTION 2025:\n"
-        for month in 1...12 {
-            let monthlyCount = workoutSessions.filter {
-                let components = calendar.dateComponents([.year, .month], from: $0.date ?? Date())
-                return components.year == 2025 && components.month == month
-            }.count
-            if monthlyCount > 0 {
-                stats += "\(monthName(month).lowercased()): \(monthlyCount) workouts\n"
-            }
-        }
-        
-        // Vektstatistikk
-        if let bodyWeightSessions = workoutSessions.filter({ $0.bodyWeight != nil && !$0.bodyWeight!.isEmpty }) as? [CDWorkoutSession] {
-            stats += "\nWEIGHT STATISTICS\n"
-            if let lastWeight = bodyWeightSessions.sorted(by: {
-                ($0.date ?? Date()) > ($1.date ?? Date())
-            }).first {
-                stats += "Last measured weight: \(lastWeight.bodyWeight ?? "") kg"
-                stats += " (\(formatDate(lastWeight.date ?? Date())))\n"
-            }
-            
-            if let lowestWeight = bodyWeightSessions.min(by: {
-                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0)
-            }) {
-                stats += "Lowest weight: \(lowestWeight.bodyWeight ?? "") kg"
-                stats += " (\(formatDate(lowestWeight.date ?? Date())))\n"
-            }
-            
-            if let highestWeight = bodyWeightSessions.max(by: {
-                (Double($0.bodyWeight ?? "0") ?? 0) < (Double($1.bodyWeight ?? "0") ?? 0)
-            }) {
-                stats += "Highest weight: \(highestWeight.bodyWeight ?? "") kg"
-                stats += " (\(formatDate(highestWeight.date ?? Date())))\n"
-            }
-        }
-        
-        return stats
     }
     
-    private func typeStatistics(for sessions: [CDWorkoutSession]) -> String {
-        var typeCount: [String: Int] = [:]
-        
-        for session in sessions {
-            let type = session.type ?? ""
-            typeCount[type, default: 0] += 1
+    private func exportWorkouts() {
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = .prettyPrinted
+            let data = try encoder.encode(workoutSessions)
+            self.exportData = data
+            self.isExporting = true
+        } catch {
+            print("Eksportfeil: \(error)")
         }
-        
-        var result = "Distribution:\n"
-        for (type, count) in typeCount.sorted(by: { $0.key < $1.key }) {
-            result += "- \(type): \(count) workout\(count == 1 ? "" : "s")\n"
-        }
-        return result
+    }
+}
+
+struct WorkoutExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    
+    var data: Data
+    
+    init(data: Data) {
+        self.data = data
     }
     
-    private func monthName(_ month: Int) -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "nb_NO")
-        return dateFormatter.monthSymbols[month - 1]
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
     }
     
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "nb_NO")
-        return formatter.string(from: date)
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 } 

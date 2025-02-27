@@ -1,15 +1,14 @@
 import SwiftUI
-import CoreData
 
 struct WorkoutLogView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject private var cloudKitManager: CloudKitManager
     @Environment(\.dismiss) private var dismiss
     
     @Binding var selectedDate: Date
     let selectedCategory: WorkoutCategory
     
     @State private var selectedLayout: WorkoutLayout
-    @State private var exercises: [CDExercise] = []
+    @State private var exercises: [Exercise] = []
     @State private var notes = ""
     @State private var calories = ""
     @State private var bodyWeight = ""
@@ -17,136 +16,52 @@ struct WorkoutLogView: View {
     @State private var newTemplateName = ""
     @State private var showingAddExercise = false
     @State private var newExerciseName = ""
-    @State private var selectedTemplate: CDWorkoutTemplate?
+    @State private var selectedTemplate: WorkoutTemplate?
     @State private var showingTemplateOptions = false
     @State private var showingTemplateManager = false
     @State private var selectedTime = Date()
-    
-    @FetchRequest private var templates: FetchedResults<CDWorkoutTemplate>
-    
-    @State private var autoSaveTimer: Timer?
-    
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    @State private var templates: [WorkoutTemplate] = []
+    @State private var isLoading = true
     
     init(selectedDate: Binding<Date>, selectedCategory: WorkoutCategory) {
         self._selectedDate = selectedDate
         self.selectedCategory = selectedCategory
         self._selectedLayout = State(initialValue: selectedCategory.defaultLayout)
-        
-        let predicate = NSPredicate(format: "type == %@", selectedCategory.rawValue)
-        _templates = FetchRequest(
-            fetchRequest: CDWorkoutTemplate.fetchRequest(predicate),
-            animation: .default
-        )
     }
     
     private func saveWorkout() {
-        let context = viewContext
-        
-        // Opprett ny treningsøkt
-        let workout = CDWorkoutSession(context: context)
-        workout.id = UUID()
-        
-        // Kombiner valgt dato med valgt tid
-        let calendar = Calendar.current
-        let selectedComponents = calendar.dateComponents([.hour, .minute], from: selectedTime)
-        var dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-        dateComponents.hour = selectedComponents.hour
-        dateComponents.minute = selectedComponents.minute
-        workout.date = calendar.date(from: dateComponents)
-        
-        // Legg til malnavn i type hvis en mal er valgt
-        if let template = selectedTemplate {
-            workout.type = "\(selectedCategory.rawValue) - \(template.name ?? "")"
-        } else {
-            workout.type = selectedCategory.rawValue
-        }
-        
-        workout.notes = notes
-        workout.calories = calories
-        workout.bodyWeight = bodyWeight
-        
-        // Lagre øvelser
-        for exercise in exercises {
-            exercise.session = workout
-        }
-        
-        // Lagre endringer
-        do {
-            try context.save()
-            
-            // Spør om å lagre som mal hvis:
-            // 1. Det er endringer i en eksisterende mal, eller
-            // 2. Det er en ny økt med øvelser og ingen mal er valgt
-            if hasTemplateChanges() || (selectedTemplate == nil && !exercises.isEmpty) {
-                showingSaveTemplateAlert = true
-                newTemplateName = selectedTemplate?.name ?? ""
-            } else {
-                dismiss()
+        Task {
+            do {
+                // Opprett ny treningsøkt
+                let workout = WorkoutSession(
+                    id: UUID().uuidString,
+                    date: selectedDate,
+                    type: selectedTemplate != nil ? "\(selectedCategory.rawValue) - \(selectedTemplate!.name)" : selectedCategory.rawValue,
+                    notes: notes.isEmpty ? nil : notes,
+                    bodyWeight: bodyWeight.isEmpty ? nil : bodyWeight,
+                    calories: calories.isEmpty ? nil : Int(calories),
+                    healthKitId: nil
+                )
+                
+                try await cloudKitManager.saveWorkoutSession(workout)
+                
+                // Lagre øvelser
+                for exercise in exercises {
+                    try await cloudKitManager.saveExercise(exercise, for: workout.id)
+                }
+                
+                // Spør om å lagre som mal hvis:
+                // 1. Det er endringer i en eksisterende mal, eller
+                // 2. Det er en ny økt med øvelser og ingen mal er valgt
+                if hasTemplateChanges() || (selectedTemplate == nil && !exercises.isEmpty) {
+                    showingSaveTemplateAlert = true
+                    newTemplateName = selectedTemplate?.name ?? ""
+                } else {
+                    dismiss()
+                }
+            } catch {
+                print("Error saving workout: \(error)")
             }
-        } catch {
-            print("Error saving workout: \(error)")
-        }
-    }
-    
-    private func saveTemplate() {
-        // Sjekk om navnet allerede eksisterer for denne treningstypen
-        if templates.contains(where: { 
-            $0.name?.lowercased() == newTemplateName.lowercased() && 
-            $0.type == selectedCategory.rawValue 
-        }) {
-            showingTemplateOptions = true
-            return
-        }
-        
-        createNewTemplate()
-    }
-    
-    private func createNewTemplate() {
-        let template = CDWorkoutTemplate(context: viewContext)
-        template.id = UUID()
-        template.name = newTemplateName
-        template.type = selectedCategory.rawValue
-        template.layout = selectedLayout.rawValue  // Lagre valgt layout
-        
-        saveExercisesToTemplate(template)
-    }
-    
-    // Ny funksjon for å oppdatere eksisterende mal
-    private func updateExistingTemplate() {
-        guard let existingTemplate = templates.first(where: { $0.name == newTemplateName }) else { return }
-        
-        // Slett eksisterende øvelser
-        for exercise in existingTemplate.exerciseArray {
-            viewContext.delete(exercise)
-        }
-        
-        saveExercisesToTemplate(existingTemplate)
-    }
-    
-    // Helper funksjon for å lagre øvelser til mal
-    private func saveExercisesToTemplate(_ template: CDWorkoutTemplate) {
-        for exercise in exercises {
-            let templateExercise = CDExerciseTemplate(context: viewContext)
-            templateExercise.id = UUID()
-            templateExercise.name = exercise.name
-            templateExercise.template = template
-            templateExercise.increaseNextTime = exercise.increaseNextTime
-            templateExercise.defaultSets = Int16(exercise.setArray.count)
-        }
-        
-        do {
-            try viewContext.save()
-            showingSaveTemplateAlert = false
-            newTemplateName = ""
-            dismiss()
-        } catch {
-            print("Error saving template: \(error)")
         }
     }
     
@@ -154,331 +69,193 @@ struct WorkoutLogView: View {
         guard let template = selectedTemplate else { return false }
         
         // Sjekk om antall øvelser er endret
-        if template.exerciseArray.count != exercises.count {
+        if template.exercises?.count != exercises.count {
             return true
         }
         
-        // For hver øvelse, sjekk om antall sett er endret
+        // For hver øvelse, sjekk om navnet er endret
         for (index, exercise) in exercises.enumerated() {
-            let templateExercise = template.exerciseArray[index]
-            
-            // Sjekk om øvelsesnavnet er endret
-            if exercise.name != templateExercise.name {
-                return true
-            }
-            
-            // Sjekk om antall sett er endret
-            if exercise.setArray.count != Int(templateExercise.defaultSets) {
+            if let templateExercises = template.exercises,
+               index < templateExercises.count,
+               exercise.name != templateExercises[index].name {
                 return true
             }
         }
         
-        // Ingen strukturelle endringer funnet
         return false
     }
     
     private func addNewExercise() {
-        let exercise = CDExercise(context: viewContext)
-        exercise.id = UUID()
-        exercise.name = newExerciseName
-        exercise.layout = selectedLayout.rawValue  // Lagre layout for denne øvelsen
-        
-        // Legg til standard sett basert på valgt layout
-        let set = CDSetData(context: viewContext)
-        set.id = UUID()
-        set.exercise = exercise
-        
-        switch selectedLayout {
-        case .strength:
-            set.weight = ""
-            set.reps = ""
-        case .endurance:
-            set.duration = ""
-            set.distance = ""
-            set.incline = ""
-            set.reps = "" // for speed
-        case .basic:
-            set.duration = ""
-        }
-        
+        let exercise = Exercise(
+            name: newExerciseName,
+            layout: selectedLayout,
+            increaseNextTime: false
+        )
         exercises.append(exercise)
         newExerciseName = ""
-        
+        showingAddExercise = false
+    }
+    
+    private func loadTemplates() async {
         do {
-            try viewContext.save()
+            templates = try await cloudKitManager.fetchTemplates()
         } catch {
-            print("Error saving exercise: \(error)")
+            print("Error loading templates: \(error)")
+        }
+    }
+    
+    private func loadTemplate(_ template: WorkoutTemplate) {
+        selectedTemplate = template
+        
+        // Last inn layout hvis det er "other" kategori
+        if selectedCategory == .other, let layout = template.layout {
+            selectedLayout = layout
+        }
+        
+        // Fjern eksisterende øvelser
+        exercises = []
+        
+        // Legg til øvelser fra malen
+        if let templateExercises = template.exercises {
+            exercises = templateExercises.map { Exercise(id: UUID().uuidString, name: $0.name, layout: selectedLayout) }
         }
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Type økt
-                VStack(alignment: .leading) {
-                    Text("Workout type:")
-                        .fontWeight(.medium)
-                    TextField("", text: .constant(selectedCategory.rawValue))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(true)
+        Form {
+            if selectedCategory == .other {
+                Picker("Layout", selection: $selectedLayout) {
+                    ForEach(WorkoutLayout.allCases) { layout in
+                        Text(layout.rawValue).tag(layout)
+                    }
                 }
-                
-                // Tidvelger
-                VStack(alignment: .leading) {
-                    Text("Time:")
-                        .fontWeight(.medium)
-                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                }
-                
-                // Velg mal
-                if !templates.isEmpty {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Select template:")
-                                .fontWeight(.medium)
-                            Spacer()
-                            Button(action: {
-                                showingTemplateManager = true
-                            }) {
-                                Image(systemName: "gear")
-                            }
-                        }
-                        Picker("Select template", selection: $selectedTemplate) {
-                            Text("No template").tag(nil as CDWorkoutTemplate?)
-                            ForEach(templates) { template in
-                                Text(template.name ?? "").tag(template as CDWorkoutTemplate?)
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                        .onChange(of: selectedTemplate) { _, template in
-                            if let template = template {
-                                loadTemplate(template)
-                            }
-                        }
+            }
+            
+            Section(header: Text("Mal")) {
+                Button(action: { showingTemplateOptions = true }) {
+                    HStack {
+                        Text(selectedTemplate?.name ?? "Velg mal")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
                     }
                 }
                 
-                // Øvelser
-                ForEach(exercises.indices, id: \.self) { index in
+                if selectedTemplate != nil {
+                    Button("Fjern mal") {
+                        selectedTemplate = nil
+                    }
+                    .foregroundColor(.red)
+                }
+            }
+            
+            Section(header: Text("Øvelser")) {
+                ForEach(exercises) { exercise in
                     ExerciseView(
-                        exercise: $exercises[index],
+                        exercise: .constant(exercise),
                         selectedCategory: selectedCategory,
                         selectedLayout: selectedLayout
                     )
                 }
                 
-                // Legg til øvelse knapp
-                Button(action: {
-                    showingAddExercise = true
-                }) {
-                    Label("Add exercise", systemImage: "plus.circle.fill")
+                Button(action: { showingAddExercise = true }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Legg til øvelse")
+                    }
                 }
-                
-                // Noter
-                VStack(alignment: .leading) {
-                    Text("Notes:")
-                        .fontWeight(.medium)
-                    TextEditor(text: $notes)
-                        .frame(height: 100)
-                        .border(Color.gray.opacity(0.2))
-                }
-                
-                // Kalorier og kroppsvekt
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Calories:")
-                            .fontWeight(.medium)
-                        TextField("kcal", text: $calories)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .keyboardType(.numberPad)
+            }
+            
+            Section(header: Text("Noter")) {
+                TextEditor(text: $notes)
+                    .frame(height: 100)
+            }
+            
+            Section(header: Text("Ekstra")) {
+                TextField("Kalorier", text: $calories)
+                    .keyboardType(.numberPad)
+                TextField("Kroppsvekt", text: $bodyWeight)
+                    .keyboardType(.decimalPad)
+            }
+        }
+        .navigationTitle("Ny treningsøkt")
+        .navigationBarItems(
+            trailing: Button("Lagre") {
+                saveWorkout()
+            }
+        )
+        .sheet(isPresented: $showingTemplateOptions) {
+            NavigationView {
+                List {
+                    Section {
+                        Button("Administrer maler") {
+                            showingTemplateOptions = false
+                            showingTemplateManager = true
+                        }
                     }
                     
-                    VStack(alignment: .leading) {
-                        Text("Body weight:")
-                            .fontWeight(.medium)
-                        TextField("kg", text: $bodyWeight)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .keyboardType(.decimalPad)
+                    Section(header: Text("Velg mal")) {
+                        ForEach(templates.filter { $0.type == selectedCategory.rawValue }) { template in
+                            Button(action: {
+                                loadTemplate(template)
+                                showingTemplateOptions = false
+                            }) {
+                                Text(template.name)
+                            }
+                        }
                     }
                 }
-            }
-            .padding()
-        }
-        .navigationTitle("New workout")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Save") {
-                    saveWorkout()
-                }
-            }
-        }
-        .alert("Save as template", isPresented: $showingSaveTemplateAlert) {
-            if let templateName = selectedTemplate?.name {
-                Text("Would you like to update the template '\(templateName)' with these changes?")
-                Button("No", role: .cancel) {
-                    showingSaveTemplateAlert = false
-                    dismiss()
-                }
-                Button("Yes", role: .none) {
-                    updateExistingTemplate()
-                }
-                Button("Continue editing") {
-                    showingSaveTemplateAlert = false
-                }
-            } else {
-                TextField("Template name", text: $newTemplateName)
-                Button("No", role: .cancel) {
-                    showingSaveTemplateAlert = false
-                    dismiss()
-                }
-                Button("Yes") {
-                    saveTemplate()
-                }
-                Button("Continue editing") {
-                    showingSaveTemplateAlert = false
-                }
-            }
-        } message: {
-            if selectedTemplate == nil {
-                Text("Would you like to save this workout as a template?")
-            }
-        }
-        .alert("Template exists", isPresented: $showingTemplateOptions) {
-            Button("Cancel", role: .cancel) {
-                showingTemplateOptions = false
-                newTemplateName = ""
-            }
-            Button("Update existing", role: .destructive) {
-                updateExistingTemplate()
-            }
-            Button("Create new with different name") {
-                showingTemplateOptions = false
-            }
-        } message: {
-            Text("A template with this name already exists. Do you want to update the existing template or create a new one with a different name?")
-        }
-        .sheet(isPresented: $showingAddExercise) {
-            NavigationStack {
-                AddExerciseView(
-                    newExerciseName: $newExerciseName,
-                    selectedLayout: $selectedLayout,
-                    onAdd: {
-                        addNewExercise()
-                        showingAddExercise = false
+                .navigationTitle("Maler")
+                .navigationBarItems(
+                    trailing: Button("Lukk") {
+                        showingTemplateOptions = false
                     }
                 )
             }
         }
         .sheet(isPresented: $showingTemplateManager) {
-            TemplateManagerView()
-        }
-        .onAppear {
-            // Start auto-save timer
-            autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-                do {
-                    try viewContext.save()
-                } catch {
-                    print("Error auto-saving: \(error)")
-                }
+            NavigationView {
+                TemplateManagerView()
             }
         }
-        .onDisappear {
-            // Stopp timer og lagre en siste gang
-            autoSaveTimer?.invalidate()
-            do {
-                try viewContext.save()
-            } catch {
-                print("Error saving on disappear: \(error)")
+        .alert("Lagre som mal", isPresented: $showingSaveTemplateAlert) {
+            TextField("Navn på mal", text: $newTemplateName)
+            Button("Avbryt", role: .cancel) {
+                dismiss()
             }
-        }
-    }
-    
-    // Oppdater loadTemplate funksjonen
-    private func loadTemplate(_ template: CDWorkoutTemplate) {
-        // Last inn layout hvis det er "other" kategori
-        if selectedCategory == .other, 
-           let layoutString = template.layout,
-           let layout = WorkoutLayout.allCases.first(where: { $0.rawValue == layoutString }) {
-            selectedLayout = layout
-        }
-        
-        // Først, hent siste økt med samme mal
-        let request = CDWorkoutSession.fetchRequest(NSPredicate(format: "type CONTAINS %@", selectedCategory.rawValue))
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDWorkoutSession.date, ascending: false)]
-        request.fetchLimit = 1
-        
-        // Fjern eksisterende øvelser
-        for exercise in exercises {
-            viewContext.delete(exercise)
-        }
-        exercises = []
-        
-        // Legg til øvelser fra malen
-        for templateExercise in template.exerciseArray {
-            print("Loading exercise: \(templateExercise.name ?? ""), defaultSets: \(templateExercise.defaultSets)")
-            let exercise = CDExercise(context: viewContext)
-            exercise.id = UUID()
-            exercise.name = templateExercise.name
-            exercise.increaseNextTime = templateExercise.increaseNextTime
-            exercise.layout = template.layout  // Sett layout fra malen
-            
-            // Finn matching øvelse fra siste økt
-            if let lastSession = try? viewContext.fetch(request).first,
-               let lastExercise = lastSession.exerciseArray.first(where: { $0.name == templateExercise.name }) {
-                // Kopier sett fra siste økt
-                for lastSet in lastExercise.setArray {
-                    let set = CDSetData(context: viewContext)
-                    set.id = UUID()
-                    set.exercise = exercise
-                    
-                    // Kopier verdiene direkte
-                    set.weight = lastSet.weight
-                    set.reps = lastSet.reps
-                    set.duration = lastSet.duration
-                    set.distance = lastSet.distance
-                    set.incline = lastSet.incline
-                    set.restPeriod = lastSet.restPeriod
-                }
-            } else {
-                // Hvis ingen tidligere økt finnes, legg til standard antall sett fra malen
-                for _ in 0..<templateExercise.defaultSets {
-                    let set = CDSetData(context: viewContext)
-                    set.id = UUID()
-                    set.exercise = exercise
-                    
-                    // Initialiser tomme felt basert på layout
-                    switch WorkoutLayout(rawValue: template.layout ?? "") {
-                    case .strength:
-                        set.weight = ""
-                        set.reps = ""
-                    case .endurance:
-                        set.duration = ""
-                        set.distance = ""
-                        set.incline = ""
-                        set.reps = "" // for speed
-                    case .basic:
-                        set.duration = ""
-                    case .none:
-                        break
+            Button("Lagre") {
+                Task {
+                    do {
+                        let template = WorkoutTemplate(
+                            id: UUID().uuidString,
+                            name: newTemplateName,
+                            type: selectedCategory.rawValue,
+                            layout: selectedCategory == .other ? selectedLayout : nil
+                        )
+                        try await cloudKitManager.saveTemplate(template)
+                        dismiss()
+                    } catch {
+                        print("Error saving template: \(error)")
                     }
                 }
             }
-            
-            exercises.append(exercise)
         }
-        
-        do {
-            try viewContext.save()
-        } catch {
-            print("Error loading template: \(error)")
+        .alert("Legg til øvelse", isPresented: $showingAddExercise) {
+            TextField("Navn på øvelse", text: $newExerciseName)
+            Button("Avbryt", role: .cancel) { }
+            Button("Legg til") {
+                addNewExercise()
+            }
+        }
+        .task {
+            await loadTemplates()
         }
     }
 }
 
-struct WorkoutLogView_Previews: PreviewProvider {
-    static var previews: some View {
+#Preview {
+    NavigationView {
         WorkoutLogView(selectedDate: .constant(Date()), selectedCategory: .strength)
-            .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+            .environmentObject(CloudKitManager.shared)
     }
 } 

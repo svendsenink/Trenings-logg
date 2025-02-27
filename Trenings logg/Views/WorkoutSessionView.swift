@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkoutSessionView: View {
-    let session: CDWorkoutSession
+    let session: WorkoutSession
     @State private var showingDetails = false
     
     private let dateFormatter: DateFormatter = {
@@ -11,7 +11,7 @@ struct WorkoutSessionView: View {
     }()
     
     private var workoutTypeAndTemplate: String {
-        let type = session.type ?? ""
+        let type = session.type
         if type.contains(" - ") {
             return type  // Returner hele strengen hvis den inneholder mal
         }
@@ -31,7 +31,7 @@ struct WorkoutSessionView: View {
                 
                 Spacer()
                 
-                Text(dateFormatter.string(from: session.date ?? Date()))
+                Text(dateFormatter.string(from: session.date))
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
@@ -40,7 +40,7 @@ struct WorkoutSessionView: View {
             }
         }
         .sheet(isPresented: $showingDetails) {
-            WorkoutDetailView(session: session)
+            WorkoutDetailView(workout: session)
         }
     }
 } 

@@ -1,8 +1,10 @@
 import SwiftUI
+import CloudKit
 
 @main
 struct TreningsLoggApp: App {
-    let persistenceController = PersistenceController.shared
+    @StateObject private var cloudKitManager = CloudKitManager.shared
+    @StateObject private var healthKitManager = HealthKitManager.shared
     
     init() {
         print("APP STARTER NÅ!")
@@ -10,10 +12,9 @@ struct TreningsLoggApp: App {
     
     var body: some Scene {
         WindowGroup {
-            NavigationView {
-                TreningsLoggContentView()
-                    .environment(\.managedObjectContext, persistenceController.container.viewContext)
-            }
+            TreningsLoggContentView()
+                .environmentObject(cloudKitManager)
+                .environmentObject(healthKitManager)
         }
     }
 } 

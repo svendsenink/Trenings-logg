@@ -1,143 +1,82 @@
 import SwiftUI
-import CoreData
 import UIKit
 
 struct WorkoutHistoryView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @Binding var selectedDate: Date
-    @State private var showingStatistics = false
-    @State private var showingWorkoutSelection = false
-    @StateObject private var healthKitManager = HealthKitManager.shared
-    @State private var showingHealthKitImport = false
+    @EnvironmentObject private var cloudKitManager: CloudKitManager
+    @State private var workoutSessions: [WorkoutSession] = []
+    @State private var isLoading = true
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var showingNewWorkout = false
     
-    @FetchRequest(
-        fetchRequest: CDWorkoutSession.fetchRequest(nil),
-        animation: .default
-    )
-    private var workoutSessions: FetchedResults<CDWorkoutSession>
-    
-    var filteredSessions: [CDWorkoutSession] {
-        workoutSessions.filter { Calendar.current.isDate($0.date ?? Date(), inSameDayAs: selectedDate) }
-    }
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
     
     var body: some View {
-        VStack {
-            CalendarView(
-                selectedDate: $selectedDate,
-                workoutDates: Set(workoutSessions.map { $0.date ?? Date() }),
-                workoutTypes: Dictionary(
-                    uniqueKeysWithValues: workoutSessions.map { session in
-                        let date = session.date ?? Date()
-                        let category: WorkoutCategory = {
-                            let type = session.type ?? ""
-                            if type.contains("Strength") {
-                                return .strength
-                            } else if type.contains("Endurance") {
-                                return .endurance
-                            } else {
-                                return .other
+        Group {
+            if isLoading {
+                ProgressView()
+            } else {
+                List {
+                    ForEach(workoutSessions) { session in
+                        NavigationLink {
+                            WorkoutDetailView(workout: session)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(session.type)
+                                    .font(.headline)
+                                Text(dateFormatter.string(from: session.date))
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
                             }
-                        }()
-                        return (date, category)
-                    }
-                )
-            )
-            
-            List {
-                Button(action: {
-                    showingWorkoutSelection = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add workout")
-                    }
-                    .foregroundColor(.blue)
-                }
-                
-                Button(action: {
-                    showingHealthKitImport = true
-                }) {
-                    HStack {
-                        Image(systemName: "heart.fill")
-                        Text("Import from Health")
-                    }
-                    .foregroundColor(.blue)
-                }
-                
-                ForEach(filteredSessions) { session in
-                    WorkoutSessionView(session: session)
-                }
-                .onDelete(perform: deleteWorkouts)
-                
-                Button(action: {
-                    showingStatistics = true
-                }) {
-                    HStack {
-                        Image(systemName: "chart.bar.fill")
-                        Text("Training Statistics")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                .padding(.horizontal)
-                .padding(.top, 20)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
-            .listStyle(PlainListStyle())
-        }
-        .sheet(isPresented: $showingStatistics) {
-            ExportView()
-        }
-        .sheet(isPresented: $showingWorkoutSelection) {
-            NavigationView {
-                WorkoutSelectionView(selectedDate: $selectedDate)
-            }
-        }
-        .alert(
-            "Import from Health",
-            isPresented: $showingHealthKitImport,
-            actions: {
-                Button("Avbryt", role: .cancel) { }
-                Button("Åpne Innstillinger") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                }
-                Button("Prøv igjen") {
-                    Task {
-                        do {
-                            try await healthKitManager.requestAuthorization()
-                            if healthKitManager.isAuthorized {
-                                await healthKitManager.importWorkouts(into: viewContext)
-                            }
-                        } catch {
-                            print("HealthKit error: \(error)")
                         }
                     }
                 }
-            },
-            message: {
-                if let error = healthKitManager.error {
-                    Text(error)
-                } else {
-                    Text("Vil du importere treningsøkter fra Health-appen?")
-                }
-            }
-        )
-    }
-    
-    private func deleteWorkouts(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { filteredSessions[$0] }.forEach(viewContext.delete)
-            do {
-                try viewContext.save()
-            } catch {
-                print("Error deleting workout: \(error)")
             }
         }
+        .navigationTitle("Treningsøkter")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showingNewWorkout = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingNewWorkout) {
+            NavigationView {
+                WorkoutSelectionView(selectedDate: .constant(Date()))
+            }
+        }
+        .task {
+            await loadWorkoutSessions()
+        }
+        .alert("Feil", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
+        .refreshable {
+            await loadWorkoutSessions()
+        }
     }
+    
+    private func loadWorkoutSessions() async {
+        do {
+            workoutSessions = try await cloudKitManager.fetchWorkoutSessions()
+            isLoading = false
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+            isLoading = false
+        }
+    }
+}
+
+#Preview {
+    WorkoutHistoryView()
+        .environmentObject(CloudKitManager.shared)
 } 

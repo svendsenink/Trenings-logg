@@ -18,11 +18,7 @@ struct WorkoutIcon: Identifiable {
 struct ManageWorkoutTypesView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedCategory: WorkoutCategory = .strength
-    @State private var workoutTypesData: Data {
-        didSet {
-            UserDefaults.standard.set(workoutTypesData, forKey: "workoutTypes")
-        }
-    }
+    @State private var workoutTypesData: Data
     @State private var workoutTypes: [WorkoutTypeItem] = []
     @State private var showingAddNew = false
     
@@ -208,6 +204,7 @@ struct ManageWorkoutTypesView: View {
     private func saveWorkoutTypes() {
         if let encoded = try? JSONEncoder().encode(workoutTypes) {
             workoutTypesData = encoded
+            UserDefaults.standard.set(workoutTypesData, forKey: "workoutTypes")
         }
     }
     

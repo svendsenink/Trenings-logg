@@ -1,58 +1,106 @@
 import SwiftUI
-import CoreData
 
 struct TemplateManagerView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject private var cloudKitManager: CloudKitManager
     @Environment(\.dismiss) private var dismiss
     
-    // Grupperer maler etter type
-    @FetchRequest(
-        sortDescriptors: [
-            NSSortDescriptor(keyPath: \CDWorkoutTemplate.type, ascending: true),
-            NSSortDescriptor(keyPath: \CDWorkoutTemplate.name, ascending: true)
-        ],
-        animation: .default
-    ) private var templates: FetchedResults<CDWorkoutTemplate>
+    @State private var templates: [WorkoutTemplate] = []
+    @State private var showingDeleteAlert = false
+    @State private var templateToDelete: WorkoutTemplate?
+    @State private var isLoading = true
+    @State private var error: Error?
+    @State private var showingError = false
     
-    var groupedTemplates: [String: [CDWorkoutTemplate]] {
-        Dictionary(grouping: templates) { $0.type ?? "" }
+    private func loadTemplates() async {
+        do {
+            templates = try await cloudKitManager.fetchTemplates()
+            isLoading = false
+        } catch {
+            self.error = error
+            showingError = true
+            isLoading = false
+        }
+    }
+    
+    private func deleteTemplate(_ template: WorkoutTemplate) {
+        Task {
+            do {
+                try await cloudKitManager.deleteTemplate(template)
+                if let index = templates.firstIndex(where: { $0.id == template.id }) {
+                    templates.remove(at: index)
+                }
+            } catch {
+                self.error = error
+                showingError = true
+            }
+        }
     }
     
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(groupedTemplates.keys.sorted(), id: \.self) { type in
-                    Section(header: Text(type)) {
-                        ForEach(groupedTemplates[type] ?? []) { template in
-                            NavigationLink(destination: EditTemplateView(template: template)) {
-                                VStack(alignment: .leading) {
-                                    Text(template.name ?? "")
-                                        .font(.headline)
+        List {
+            ForEach(WorkoutCategory.allCases) { category in
+                Section(header: Text(category.rawValue)) {
+                    ForEach(templates.filter { $0.type == category.rawValue }) { template in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(template.name)
+                                    .font(.headline)
+                                if let exercises = template.exercises {
+                                    Text("\(exercises.count) øvelser")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
                                 }
                             }
-                        }
-                        .onDelete { indexSet in
-                            deleteTemplates(type: type, at: indexSet)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                templateToDelete = template
+                                showingDeleteAlert = true
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
                         }
                     }
                 }
             }
-            .navigationTitle("Templates")
-            .navigationBarItems(
-                leading: Button("Close") { dismiss() }
-            )
         }
-    }
-    
-    private func deleteTemplates(type: String, at offsets: IndexSet) {
-        withAnimation {
-            let templatesForType = groupedTemplates[type] ?? []
-            offsets.map { templatesForType[$0] }.forEach(viewContext.delete)
-            do {
-                try viewContext.save()
-            } catch {
-                print("Error deleting template: \(error)")
+        .navigationTitle("Administrer maler")
+        .navigationBarItems(trailing: Button("Ferdig") { dismiss() })
+        .alert("Slett mal", isPresented: $showingDeleteAlert) {
+            Button("Avbryt", role: .cancel) { }
+            Button("Slett", role: .destructive) {
+                if let template = templateToDelete {
+                    deleteTemplate(template)
+                }
+            }
+        } message: {
+            if let template = templateToDelete {
+                Text("Er du sikker på at du vil slette malen '\(template.name)'?")
             }
         }
+        .alert("Feil", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = error {
+                Text("Det oppstod en feil: \(error.localizedDescription)")
+            }
+        }
+        .overlay {
+            if isLoading {
+                ProgressView()
+            }
+        }
+        .task {
+            await loadTemplates()
+        }
+    }
+}
+
+#Preview {
+    NavigationView {
+        TemplateManagerView()
+            .environmentObject(CloudKitManager.shared)
     }
 } 

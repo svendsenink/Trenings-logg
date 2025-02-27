@@ -1,144 +1,107 @@
 import SwiftUI
-import CoreData
 
 struct WorkoutDetailView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var showingEditView = false
-    let session: CDWorkoutSession
+    @EnvironmentObject private var cloudKitManager: CloudKitManager
+    let workout: WorkoutSession
     
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.locale = Locale(identifier: "nb_NO")  // Norsk formatering
-        return formatter
-    }()
+    @State private var exercises: [Exercise] = []
+    @State private var sets: [String: [SetData]] = [:]
+    @State private var isLoading = true
+    
+    private func loadExercises() async {
+        do {
+            exercises = try await cloudKitManager.fetchExercises(for: workout.id)
+            
+            // Last inn sett for hver øvelse
+            for exercise in exercises {
+                let exerciseSets = try await cloudKitManager.fetchSets(for: exercise.id)
+                sets[exercise.id] = exerciseSets.sorted(by: { $0.order < $1.order })
+            }
+            
+            isLoading = false
+        } catch {
+            print("Error loading exercises: \(error)")
+            isLoading = false
+        }
+    }
     
     var body: some View {
-        NavigationStack {  // Endret fra NavigationView til NavigationStack
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Øvelser
-                    ForEach(session.exerciseArray) { exercise in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(exercise.name ?? "")
-                                    .font(.headline)
-                                if exercise.increaseNextTime {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                }
-                            }
-                            
-                            ForEach(exercise.setArray) { set in
-                                HStack {
-                                    // For styrketrening
-                                    if exercise.layout == WorkoutLayout.strength.rawValue {
-                                        if let reps = set.reps {
-                                            Text("\(reps) reps")
-                                        }
-                                        if let weight = set.weight {
-                                            Text("\(weight) kg")
-                                        }
+        List {
+            Section(header: Text("Detaljer")) {
+                if let notes = workout.notes, !notes.isEmpty {
+                    Text("Noter: \(notes)")
+                }
+                
+                if let calories = workout.calories {
+                    Text("Kalorier: \(calories)")
+                }
+                
+                if let bodyWeight = workout.bodyWeight, !bodyWeight.isEmpty {
+                    Text("Kroppsvekt: \(bodyWeight) kg")
+                }
+            }
+            
+            if isLoading {
+                Section {
+                    ProgressView()
+                }
+            } else {
+                ForEach(exercises) { exercise in
+                    Section(header: Text(exercise.name)) {
+                        if let exerciseSets = sets[exercise.id] {
+                            ForEach(exerciseSets) { set in
+                                switch exercise.layout {
+                                case .strength:
+                                    if let weight = set.weight, let reps = set.reps {
+                                        Text("\(weight) kg x \(reps) reps")
                                     }
                                     
-                                    // For utholdenhet/intervaller
-                                    if exercise.layout == WorkoutLayout.endurance.rawValue {
-                                        if let speed = set.reps {
-                                            Text("\(speed) km/h")
-                                        }
+                                case .endurance:
+                                    VStack(alignment: .leading) {
                                         if let duration = set.duration {
-                                            Text("\(duration) min")
+                                            Text("Tid: \(duration) min")
                                         }
                                         if let distance = set.distance {
-                                            Text("\(distance) km")
+                                            Text("Distanse: \(distance) km")
+                                        }
+                                        if let speed = set.reps {
+                                            Text("Fart: \(speed) km/t")
                                         }
                                         if let incline = set.incline {
-                                            Text("\(incline)° incline")
+                                            Text("Stigning: \(incline)°")
                                         }
                                     }
                                     
-                                    // For basic (tid)
-                                    if exercise.layout == WorkoutLayout.basic.rawValue {
-                                        if let duration = set.duration {
-                                            Text("\(duration) min")
-                                        }
+                                case .basic:
+                                    if let duration = set.duration {
+                                        Text("\(duration) min")
                                     }
                                 }
-                                .foregroundColor(.gray)
-                                
-                                // Vis hvileperiode hvis den finnes
-                                if let rest = set.restPeriod, !rest.isEmpty {
-                                    Text("Rest: \(rest) min")
-                                        .foregroundColor(.gray)
-                                        .italic()
-                                }
-                            }
-                            Divider()
-                        }
-                    }
-                    
-                    // Noter
-                    if let notes = session.notes, !notes.isEmpty {
-                        VStack(alignment: .leading) {
-                            Text("Notes:")
-                                .font(.headline)
-                            Text(notes)
-                        }
-                    }
-                    
-                    // Kalorier og kroppsvekt
-                    HStack {
-                        if let calories = session.calories, !calories.isEmpty {
-                            VStack(alignment: .leading) {
-                                Text("Calories:")
-                                    .font(.headline)
-                                Text("\(calories) kcal")
-                            }
-                        }
-                        
-                        if let bodyWeight = session.bodyWeight, !bodyWeight.isEmpty {
-                            VStack(alignment: .leading) {
-                                Text("Body weight:")
-                                    .font(.headline)
-                                Text("\(bodyWeight) kg")
                             }
                         }
                     }
                 }
-                .padding()
             }
-            .navigationTitle(dateFormatter.string(from: session.date ?? Date()))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
-                        Button(action: {
-                            showingEditView = true
-                        }) {
-                            Image(systemName: "pencil")
-                        }
-                        
-                        Button("Done") {
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $showingEditView) {
-                NavigationStack {
-                    WorkoutEditView(session: session)
-                }
-            }
+        }
+        .navigationTitle(workout.type)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadExercises()
         }
     }
 }
 
 #Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let session = CDWorkoutSession(context: context)
-    session.date = Date()
-    session.type = "Strength"
-    return WorkoutDetailView(session: session)
-        .environment(\.managedObjectContext, context)
+    NavigationView {
+        WorkoutDetailView(
+            workout: WorkoutSession(
+                date: Date(),
+                type: "Styrke",
+                notes: "God økt!",
+                bodyWeight: "80",
+                calories: 300
+            )
+        )
+        .environmentObject(CloudKitManager.shared)
+    }
 } 

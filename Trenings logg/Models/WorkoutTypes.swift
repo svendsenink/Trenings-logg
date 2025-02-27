@@ -123,12 +123,4 @@ enum WorkoutCategory: String, CaseIterable, Identifiable, Codable {
             return "figure.mixed.cardio"
         }
     }
-}
-
-enum WorkoutLayout: String, CaseIterable, Identifiable {
-    case strength = "Strength (Weight/Reps)"
-    case endurance = "Endurance (Time/Dist)"
-    case basic = "Basic (Time only)"
-    
-    var id: String { rawValue }
 } 
