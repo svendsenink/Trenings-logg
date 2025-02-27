@@ -13,15 +13,22 @@ struct ExerciseView: View {
     @FocusState private var focusedField: String?
     @State private var isEditing: Set<String> = []
     
-    @State private var previousValues: [String: String] = [:]  // Legg til denne for å lagre tidligere verdier
-    @State private var justGotFocus: Set<String> = []  // Legg til denne nye tilstanden
+    @State private var previousValues: [String: String] = [:]
+    @State private var justGotFocus: Set<String> = []
     
     private func addSet() {
         withAnimation {
             let set = CDSetData(context: viewContext)
             set.id = UUID()
             set.exercise = exercise
+            set.order = Int16(sets.count)
+            
             sets.append(set)
+            
+            // Oppdater rekkefølgen for alle sett
+            for (index, set) in sets.enumerated() {
+                set.order = Int16(index)
+            }
             
             do {
                 try viewContext.save()
@@ -36,6 +43,11 @@ struct ExerciseView: View {
             if let index = sets.firstIndex(of: set) {
                 sets.remove(at: index)
                 viewContext.delete(set)
+                
+                // Oppdater rekkefølgen for gjenværende sett
+                for (index, set) in sets.enumerated() {
+                    set.order = Int16(index)
+                }
                 
                 do {
                     try viewContext.save()
@@ -562,10 +574,7 @@ struct ExerciseView: View {
             }
         }
         .onAppear {
-            if sets.isEmpty {
-                sets = exercise.setArray
-                fetchLastWorkoutData()
-            }
+            loadExistingSets()
         }
     }
     
@@ -691,5 +700,27 @@ struct ExerciseView: View {
                 }
             }
         }
+    }
+    
+    private func loadExistingSets() {
+        sets = exercise.setArray
+        
+        // Initialiser verdier og rekkefølge
+        for (index, set) in sets.enumerated() {
+            set.order = Int16(index)
+            
+            if let id = set.id?.uuidString {
+                // Lagre eksisterende verdier
+                if let weight = set.weight {
+                    previousValues["\(id)-weight"] = weight
+                }
+                if let reps = set.reps {
+                    previousValues["\(id)-reps"] = reps
+                }
+                // ... andre felt ...
+            }
+        }
+        
+        try? viewContext.save()
     }
 } 

@@ -3,6 +3,7 @@ import CoreData
 
 struct WorkoutDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var showingEditView = false
     let session: CDWorkoutSession
     
     private let dateFormatter: DateFormatter = {
@@ -31,20 +32,47 @@ struct WorkoutDetailView: View {
                             
                             ForEach(exercise.setArray) { set in
                                 HStack {
-                                    if let reps = set.reps {
-                                        Text("\(reps) reps")
+                                    // For styrketrening
+                                    if exercise.layout == WorkoutLayout.strength.rawValue {
+                                        if let reps = set.reps {
+                                            Text("\(reps) reps")
+                                        }
+                                        if let weight = set.weight {
+                                            Text("\(weight) kg")
+                                        }
                                     }
-                                    if let weight = set.weight {
-                                        Text("\(weight) kg")
+                                    
+                                    // For utholdenhet/intervaller
+                                    if exercise.layout == WorkoutLayout.endurance.rawValue {
+                                        if let speed = set.reps {
+                                            Text("\(speed) km/h")
+                                        }
+                                        if let duration = set.duration {
+                                            Text("\(duration) min")
+                                        }
+                                        if let distance = set.distance {
+                                            Text("\(distance) km")
+                                        }
+                                        if let incline = set.incline {
+                                            Text("\(incline)° incline")
+                                        }
                                     }
-                                    if let duration = set.duration {
-                                        Text("\(duration) min")
-                                    }
-                                    if let distance = set.distance {
-                                        Text("\(distance) km")
+                                    
+                                    // For basic (tid)
+                                    if exercise.layout == WorkoutLayout.basic.rawValue {
+                                        if let duration = set.duration {
+                                            Text("\(duration) min")
+                                        }
                                     }
                                 }
                                 .foregroundColor(.gray)
+                                
+                                // Vis hvileperiode hvis den finnes
+                                if let rest = set.restPeriod, !rest.isEmpty {
+                                    Text("Rest: \(rest) min")
+                                        .foregroundColor(.gray)
+                                        .italic()
+                                }
                             }
                             Divider()
                         }
@@ -84,9 +112,22 @@ struct WorkoutDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    HStack {
+                        Button(action: {
+                            showingEditView = true
+                        }) {
+                            Image(systemName: "pencil")
+                        }
+                        
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
+                }
+            }
+            .sheet(isPresented: $showingEditView) {
+                NavigationStack {
+                    WorkoutEditView(session: session)
                 }
             }
         }

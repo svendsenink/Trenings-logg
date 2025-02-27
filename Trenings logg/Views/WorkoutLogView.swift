@@ -313,25 +313,35 @@ struct WorkoutLogView: View {
                 }
             }
         }
-        .alert("Update template", isPresented: $showingSaveTemplateAlert) {
+        .alert("Save as template", isPresented: $showingSaveTemplateAlert) {
             if let templateName = selectedTemplate?.name {
                 Text("Would you like to update the template '\(templateName)' with these changes?")
-                Button("Cancel", role: .cancel) {
+                Button("No", role: .cancel) {
                     showingSaveTemplateAlert = false
                     dismiss()
                 }
-                Button("Update", role: .destructive) {
+                Button("Yes", role: .none) {
                     updateExistingTemplate()
+                }
+                Button("Continue editing") {
+                    showingSaveTemplateAlert = false
                 }
             } else {
                 TextField("Template name", text: $newTemplateName)
-                Button("Cancel", role: .cancel) {
+                Button("No", role: .cancel) {
                     showingSaveTemplateAlert = false
                     dismiss()
                 }
-                Button("Save") {
+                Button("Yes") {
                     saveTemplate()
                 }
+                Button("Continue editing") {
+                    showingSaveTemplateAlert = false
+                }
+            }
+        } message: {
+            if selectedTemplate == nil {
+                Text("Would you like to save this workout as a template?")
             }
         }
         .alert("Template exists", isPresented: $showingTemplateOptions) {

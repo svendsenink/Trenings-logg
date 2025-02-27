@@ -4,7 +4,12 @@ struct CalendarView: View {
     @Binding var selectedDate: Date
     let workoutDates: Set<Date>
     
-    private let calendar = Calendar.current
+    private let calendar: Calendar = {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2  // 2 = Mandag (1 er Søndag)
+        return calendar
+    }()
+    
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "d"
@@ -15,6 +20,12 @@ struct CalendarView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
         formatter.locale = Locale(identifier: "nb_NO")
+        return formatter
+    }()
+    
+    private let weekNumberFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "w"  // 'w' gir ukenummer
         return formatter
     }()
     
@@ -67,94 +78,143 @@ struct CalendarView: View {
         return days
     }
     
+    // Legg til en property for dagens dato
+    private let today = Date()
+    
     var body: some View {
-        VStack(spacing: 15) {  // Behold spacing mellom elementene
-            // Måned og år header
+        VStack {
+            // Månedvisning og navigasjonsknapper
             HStack {
-                Button(action: previousMonth) {
+                Text(monthFormatter.string(from: selectedDate))
+                    .font(.title2)
+                Spacer()
+                
+                // Legg til Today-knapp
+                Button(action: {
+                    withAnimation {
+                        selectedDate = today
+                    }
+                }) {
+                    Text("Today")
+                        .foregroundColor(.blue)
+                }
+                .padding(.horizontal, 8)
+                
+                Button(action: { moveMonth(by: -1) }) {
                     Image(systemName: "chevron.left")
                 }
-                Spacer()
-                Text(monthFormatter.string(from: selectedDate))
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Spacer()
-                Button(action: nextMonth) {
+                Button(action: { moveMonth(by: 1) }) {
                     Image(systemName: "chevron.right")
                 }
             }
+            .padding(.horizontal)
             
-            // Legg til "I dag" knapp
-            Button(action: goToToday) {
-                Label("I dag", systemImage: "calendar")
-                    .foregroundColor(.blue)
-            }
-            .padding(.bottom, 5)
-            
-            // Ukedager header
-            HStack {
-                ForEach(daysInWeek, id: \.self) { day in
+            // Ukedager header med ukenummer
+            HStack(spacing: 0) {
+                Text("W")  // Header for ukenummer
+                    .font(.caption)
+                    .frame(width: 30)
+                
+                ForEach(getWeekdaySymbols(), id: \.self) { day in
                     Text(day)
-                        .frame(maxWidth: .infinity)
                         .font(.caption)
+                        .frame(maxWidth: .infinity)
                 }
             }
+            .padding(.bottom, 8)
             
-            // Kalenderdager
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                ForEach(days, id: \.self) { date in
-                    CalendarCell(
-                        date: date,
-                        isCurrentMonth: calendar.isDate(date, equalTo: selectedDate, toGranularity: .month),
-                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
-                        hasWorkout: workoutDates.contains { calendar.isDate($0, inSameDayAs: date) }
-                    )
+            // Datoer med ukenummer
+            LazyVGrid(columns: [
+                GridItem(.fixed(30)),  // Kolonne for ukenummer
+                GridItem(.flexible()),  // Mandag
+                GridItem(.flexible()),  // Tirsdag
+                GridItem(.flexible()),  // Onsdag
+                GridItem(.flexible()),  // Torsdag
+                GridItem(.flexible()),  // Fredag
+                GridItem(.flexible()),  // Lørdag
+                GridItem(.flexible())   // Søndag
+            ], spacing: 8) {
+                // For hver uke
+                ForEach(weeks, id: \.self) { week in
+                    // Ukenummer
+                    Text(weekNumberFormatter.string(from: week.first ?? Date()))
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    // Dager i uken
+                    ForEach(week, id: \.self) { date in
+                        DayCell(
+                            date: date,
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                            hasWorkout: workoutDates.contains { calendar.isDate($0, inSameDayAs: date) }
+                        )
+                    }
                 }
             }
         }
-        .padding(.top, 10)  // Endre fra -20 til 10 for å senke kalenderen
     }
     
-    private func previousMonth() {
-        if let newDate = calendar.date(byAdding: .month, value: -1, to: selectedDate) {
+    private func moveMonth(by: Int) {
+        if let newDate = calendar.date(byAdding: .month, value: by, to: selectedDate) {
             selectedDate = newDate
         }
     }
     
-    private func nextMonth() {
-        if let newDate = calendar.date(byAdding: .month, value: 1, to: selectedDate) {
-            selectedDate = newDate
-        }
-    }
-    
-    private func goToToday() {
-        selectedDate = Date()
-    }
-    
-    private func CalendarCell(date: Date, isCurrentMonth: Bool, isSelected: Bool, hasWorkout: Bool) -> some View {
+    private func DayCell(date: Date, isSelected: Bool, hasWorkout: Bool) -> some View {
         Button(action: {
             selectedDate = date
         }) {
             Text(dateFormatter.string(from: date))
-                .font(.system(size: 20))  // Øk fontstørrelsen ytterligere
-                .foregroundColor(
-                    isSelected ? .white :
-                        hasWorkout ? .green :
-                        isCurrentMonth ? .primary : .secondary
-                )
+                .foregroundColor(isSelected ? .white : .primary)
+                .opacity(isDateInCurrentMonth(date) ? 1.0 : 0.3)
                 .frame(width: 40, height: 40)
                 .background(
                     Group {
                         if isSelected {
                             Circle()
                                 .fill(Color.blue)
-                                .frame(width: 36, height: 36)
-                        } else {
-                            Circle()
-                                .fill(Color.clear)
+                        } else if hasWorkout {
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.blue, lineWidth: 5)
+                                .opacity(isDateInCurrentMonth(date) ? 0.8 : 0.3)
                         }
                     }
                 )
         }
+    }
+    
+    // Hjelpefunksjon for å sjekke om en dato er i gjeldende måned
+    private func isDateInCurrentMonth(_ date: Date) -> Bool {
+        calendar.component(.month, from: date) == calendar.component(.month, from: selectedDate)
+    }
+    
+    // Hjelpefunksjon for å få ukedager i riktig rekkefølge
+    private func getWeekdaySymbols() -> [String] {
+        let weekdays = calendar.shortWeekdaySymbols
+        let sunday = weekdays.first!
+        var reorderedWeekdays = Array(weekdays.dropFirst())
+        reorderedWeekdays.append(sunday)
+        return reorderedWeekdays
+    }
+    
+    // Ny property for å gruppere dager i uker
+    private var weeks: [[Date]] {
+        let days = days
+        var weeks: [[Date]] = []
+        var currentWeek: [Date] = []
+        
+        for day in days {
+            if !currentWeek.isEmpty && calendar.component(.weekOfYear, from: day) != calendar.component(.weekOfYear, from: currentWeek[0]) {
+                weeks.append(currentWeek)
+                currentWeek = []
+            }
+            currentWeek.append(day)
+            
+            if day == days.last {
+                weeks.append(currentWeek)
+            }
+        }
+        
+        return weeks
     }
 } 

@@ -20,9 +20,8 @@ extension CDWorkoutSession {
 extension CDExercise {
     var setArray: [CDSetData] {
         let set = sets as? Set<CDSetData> ?? []
-        return set.sorted { 
-            guard let id1 = $0.id, let id2 = $1.id else { return false }
-            return id1.uuidString < id2.uuidString
+        return set.sorted { first, second in
+            first.order < second.order
         }
     }
 }

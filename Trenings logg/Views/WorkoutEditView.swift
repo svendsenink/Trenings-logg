@@ -9,43 +9,25 @@ struct WorkoutEditView: View {
     @State private var notes: String
     @State private var calories: String
     @State private var bodyWeight: String
+    @State private var exercises: [CDExercise]
     
     init(session: CDWorkoutSession) {
         self.session = session
         self._notes = State(initialValue: session.notes ?? "")
         self._calories = State(initialValue: session.calories ?? "")
         self._bodyWeight = State(initialValue: session.bodyWeight ?? "")
+        self._exercises = State(initialValue: session.exerciseArray)
     }
     
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                ForEach(session.exerciseArray) { exercise in
-                    VStack(alignment: .leading) {
-                        Text(exercise.name ?? "")
-                            .font(.headline)
-                        
-                        ForEach(exercise.setArray) { set in
-                            HStack {
-                                if let reps = set.reps {
-                                    TextField("Reps", text: Binding(
-                                        get: { reps },
-                                        set: { set.reps = $0 }
-                                    ))
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                }
-                                
-                                if let weight = set.weight {
-                                    TextField("Kg", text: Binding(
-                                        get: { weight },
-                                        set: { set.weight = $0 }
-                                    ))
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                }
-                            }
-                        }
-                    }
-                    Divider()
+                ForEach($exercises) { $exercise in
+                    ExerciseView(
+                        exercise: $exercise,
+                        selectedCategory: WorkoutCategory.from(healthKitType: .other),
+                        selectedLayout: WorkoutLayout(rawValue: exercise.layout ?? "") ?? .basic
+                    )
                 }
                 
                 VStack(alignment: .leading) {
@@ -62,6 +44,7 @@ struct WorkoutEditView: View {
                             .font(.headline)
                         TextField("kcal", text: $calories)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.numberPad)
                     }
                     
                     VStack(alignment: .leading) {
@@ -69,18 +52,17 @@ struct WorkoutEditView: View {
                             .font(.headline)
                         TextField("kg", text: $bodyWeight)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.decimalPad)
                     }
                 }
-                
-                Button("Lagre endringer") {
-                    saveChanges()
-                }
-                .buttonStyle(.borderedProminent)
             }
             .padding()
         }
         .navigationTitle("Rediger økt")
-        .navigationBarItems(trailing: Button("Avbryt") { dismiss() })
+        .navigationBarItems(
+            leading: Button("Avbryt") { dismiss() },
+            trailing: Button("Lagre") { saveChanges() }
+        )
     }
     
     private func saveChanges() {
