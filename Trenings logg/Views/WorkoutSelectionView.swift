@@ -23,8 +23,7 @@ struct WorkoutSelectionView: View {
                     NavigationLink(
                         destination: WorkoutTypeList(
                             selectedDate: $selectedDate,
-                            category: .strength,
-                            workoutTypes: [.traditionalStrengthTraining, .functionalStrengthTraining]
+                            category: .strength
                         )
                     ) {
                         HStack {
@@ -44,8 +43,7 @@ struct WorkoutSelectionView: View {
                     NavigationLink(
                         destination: WorkoutTypeList(
                             selectedDate: $selectedDate,
-                            category: .endurance,
-                            workoutTypes: [.running, .cycling, .swimming, .walking, .rowing]
+                            category: .endurance
                         )
                     ) {
                         HStack {
@@ -65,8 +63,7 @@ struct WorkoutSelectionView: View {
                     NavigationLink(
                         destination: WorkoutTypeList(
                             selectedDate: $selectedDate,
-                            category: .other,
-                            workoutTypes: [.hiking, .crossTraining, .yoga, .pilates, .boxing, .other]
+                            category: .other
                         )
                     ) {
                         HStack {
@@ -93,11 +90,16 @@ struct WorkoutSelectionView: View {
 struct WorkoutTypeList: View {
     @Binding var selectedDate: Date
     let category: WorkoutCategory
-    let workoutTypes: [HKWorkoutActivityType]
+    @State private var showingManageTypes = false
+    @State private var workoutTypes: [WorkoutTypeItem] = []
+    
+    var visibleTypes: [WorkoutTypeItem] {
+        workoutTypes.filter { $0.category == category && $0.isVisible }
+    }
     
     var body: some View {
         List {
-            ForEach(workoutTypes, id: \.rawValue) { type in
+            ForEach(visibleTypes) { type in
                 NavigationLink(
                     destination: WorkoutLogView(
                         selectedDate: $selectedDate,
@@ -105,10 +107,10 @@ struct WorkoutTypeList: View {
                     )
                 ) {
                     HStack {
-                        Image(systemName: iconName(for: type))
+                        Image(systemName: type.icon)
                             .foregroundColor(category.themeColor)
                             .font(.system(size: 30))
-                        Text(WorkoutCategory.name(for: type))
+                        Text(type.name)
                             .font(.title2)
                             .padding(.leading, 12)
                     }
@@ -116,24 +118,26 @@ struct WorkoutTypeList: View {
                     .padding(.vertical, 12)
                 }
             }
+            
+            Button(action: {
+                showingManageTypes = true
+            }) {
+                Label("Manage Workout Types", systemImage: "gear")
+            }
         }
         .navigationTitle(category.rawValue)
+        .sheet(isPresented: $showingManageTypes) {
+            ManageWorkoutTypesView()
+        }
+        .onAppear {
+            loadWorkoutTypes()
+        }
     }
     
-    private func iconName(for type: HKWorkoutActivityType) -> String {
-        switch type {
-        case .traditionalStrengthTraining: return "figure.strengthtraining.traditional"
-        case .functionalStrengthTraining: return "figure.strengthtraining.functional"
-        case .running: return "figure.run"
-        case .walking: return "figure.walk"
-        case .cycling: return "bicycle"
-        case .swimming: return "figure.pool.swim"
-        case .hiking: return "figure.hiking"
-        case .rowing: return "figure.rower"
-        case .yoga: return "figure.yoga"
-        case .pilates: return "figure.pilates"
-        case .boxing: return "figure.boxing"
-        default: return "figure.mixed.cardio"
+    private func loadWorkoutTypes() {
+        if let data = UserDefaults.standard.data(forKey: "workoutTypes"),
+           let savedTypes = try? JSONDecoder().decode([WorkoutTypeItem].self, from: data) {
+            workoutTypes = savedTypes
         }
     }
 }

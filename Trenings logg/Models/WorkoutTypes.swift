@@ -2,7 +2,7 @@ import Foundation
 import HealthKit
 import SwiftUI
 
-enum WorkoutCategory: String, CaseIterable, Identifiable {
+enum WorkoutCategory: String, CaseIterable, Identifiable, Codable {
     case strength = "Strength"
     case endurance = "Endurance"
     case other = "Other"
@@ -110,6 +110,17 @@ enum WorkoutCategory: String, CaseIterable, Identifiable {
             return .green
         case .other:
             return .yellow
+        }
+    }
+    
+    var defaultIcon: String {
+        switch self {
+        case .strength:
+            return "figure.strengthtraining.traditional"
+        case .endurance:
+            return "figure.run"  // Dette blir bare brukt for nye utholdenhetstreningstyper
+        case .other:
+            return "figure.mixed.cardio"
         }
     }
 }

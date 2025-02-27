@@ -3,7 +3,7 @@ import SwiftUI
 struct CalendarView: View {
     @Binding var selectedDate: Date
     let workoutDates: Set<Date>
-    let workoutTypes: [Date: WorkoutCategory]  // Ny property for å holde styr på treningstyper
+    let workoutTypes: [Date: WorkoutCategory]
     
     private let calendar: Calendar = {
         var calendar = Calendar.current
@@ -147,8 +147,7 @@ struct CalendarView: View {
                         DayCell(
                             date: date,
                             isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
-                            hasWorkout: workoutDates.contains { calendar.isDate($0, inSameDayAs: date) },
-                            workoutTypes: workoutTypes
+                            hasWorkout: workoutDates.contains { calendar.isDate($0, inSameDayAs: date) }
                         )
                     }
                 }
@@ -162,7 +161,11 @@ struct CalendarView: View {
         }
     }
     
-    private func DayCell(date: Date, isSelected: Bool, hasWorkout: Bool, workoutTypes: [Date: WorkoutCategory]) -> some View {
+    private func getWorkoutCategory(for date: Date) -> WorkoutCategory? {
+        workoutTypes.first { Calendar.current.isDate($0.key, inSameDayAs: date) }?.value
+    }
+    
+    private func DayCell(date: Date, isSelected: Bool, hasWorkout: Bool) -> some View {
         Button(action: {
             selectedDate = date
         }) {
@@ -175,18 +178,12 @@ struct CalendarView: View {
                         if isSelected {
                             Circle()
                                 .fill(Color.blue)
-                        } else if hasWorkout {
-                            // Finn alle økter for denne dagen
-                            let workoutsForDay = workoutTypes.filter { Calendar.current.isDate($0.key, inSameDayAs: date) }
-                            ZStack {
-                                // Lag ringer for alle økter
-                                ForEach(Array(workoutsForDay.enumerated()), id: \.offset) { index, workout in
-                                    RoundedRectangle(cornerRadius: max(8 - index, 4))  // Minking cornerRadius
-                                        .strokeBorder(workout.value.themeColor, lineWidth: 3)
-                                        .frame(width: max(36 - (index * 6), 18), height: max(36 - (index * 6), 18))  // Minkende størrelse
-                                        .opacity(isDateInCurrentMonth(date) ? 0.8 : 0.3)
-                                }
-                            }
+                        } else if hasWorkout,
+                                let category = getWorkoutCategory(for: date) {
+                            Circle()
+                                .fill(category.themeColor)
+                                .frame(width: 32, height: 32)
+                                .opacity(0.3)
                         }
                     }
                 )
