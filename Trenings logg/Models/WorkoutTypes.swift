@@ -1,10 +1,11 @@
 import Foundation
 import HealthKit
+import SwiftUI
 
 enum WorkoutCategory: String, CaseIterable, Identifiable {
     case strength = "Strength"
     case endurance = "Endurance"
-    case other = "Other training"
+    case other = "Other"
     
     var id: String { rawValue }
     
@@ -16,6 +17,25 @@ enum WorkoutCategory: String, CaseIterable, Identifiable {
             return .endurance
         case .other:
             return .basic
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .strength: return "figure.strengthtraining.traditional"
+        case .endurance: return "figure.run"
+        case .other: return "figure.mixed.cardio"
+        }
+    }
+    
+    var workoutTypes: [HKWorkoutActivityType] {
+        switch self {
+        case .strength:
+            return [.traditionalStrengthTraining, .functionalStrengthTraining]
+        case .endurance:
+            return [.running, .cycling, .swimming, .walking, .rowing]
+        case .other:
+            return [.hiking, .crossTraining, .yoga, .pilates, .boxing, .other]
         }
     }
     
@@ -79,6 +99,17 @@ enum WorkoutCategory: String, CaseIterable, Identifiable {
         case .boxing: return "Boxing"
         case .other: return "Other"
         default: return "Unknown"
+        }
+    }
+    
+    var themeColor: Color {
+        switch self {
+        case .strength:
+            return .red
+        case .endurance:
+            return .green
+        case .other:
+            return .yellow
         }
     }
 }

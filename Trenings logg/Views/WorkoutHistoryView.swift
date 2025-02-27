@@ -24,7 +24,23 @@ struct WorkoutHistoryView: View {
         VStack {
             CalendarView(
                 selectedDate: $selectedDate,
-                workoutDates: Set(workoutSessions.map { $0.date ?? Date() })
+                workoutDates: Set(workoutSessions.map { $0.date ?? Date() }),
+                workoutTypes: Dictionary(
+                    uniqueKeysWithValues: workoutSessions.map { session in
+                        let date = session.date ?? Date()
+                        let category: WorkoutCategory = {
+                            let type = session.type ?? ""
+                            if type.contains("Strength") {
+                                return .strength
+                            } else if type.contains("Endurance") {
+                                return .endurance
+                            } else {
+                                return .other
+                            }
+                        }()
+                        return (date, category)
+                    }
+                )
             )
             
             List {
@@ -78,7 +94,7 @@ struct WorkoutHistoryView: View {
         }
         .sheet(isPresented: $showingWorkoutSelection) {
             NavigationView {
-                WorkoutSelectionView(selectedDate: selectedDate)
+                WorkoutSelectionView(selectedDate: $selectedDate)
             }
         }
         .alert(

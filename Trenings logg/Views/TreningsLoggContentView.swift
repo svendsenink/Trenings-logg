@@ -10,7 +10,7 @@ struct TreningsLoggContentView: View {
         NavigationStack {
             TabView(selection: $selectedTab) {
                 NavigationView {
-                    WorkoutSelectionView(selectedDate: selectedDate)
+                    WorkoutSelectionView(selectedDate: $selectedDate)  // Legg til $ her
                 }
                 .tabItem {
                     Label("New workout", systemImage: "plus.circle.fill")
@@ -27,7 +27,7 @@ struct TreningsLoggContentView: View {
             }
             .onChange(of: selectedTab) { _, newValue in
                 if newValue == 1 {
-                    selectedDate = Date()  // Gå til dagens dato når kalenderfanen velges
+                    selectedDate = Date()
                 }
             }
             .preferredColorScheme(.dark)
@@ -38,4 +38,4 @@ struct TreningsLoggContentView: View {
 #Preview {
     TreningsLoggContentView()
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
-} 
+}
